@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48</TargetFrameworks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>BeatSaberExtensions</AssemblyName>
+    <RootNamespace>BeatSaberExtensions</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>CS0114</NoWarn> <!-- Ignore CS114 errors -->
+    <DotnetAssembliesPath>P:\RYAN\Streaming\Dotnet Assemblies</DotnetAssembliesPath>
+    <DefineConstants>OUTSIDE_STREAMERBOT</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- System Assemblies -->
+    <Reference Include="System.Net.Http" Version="4.0.0" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Security" />
+
+    <!-- Additional Assenblies -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DotnetAssembliesPath)\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Streamer.bot.Plugin.Interface">
+      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.dll</HintPath>
+    </Reference>
+    <Reference Include="Streamer.bot.Plugin.Interface.Enum">
+      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.Enum.dll</HintPath>
+    </Reference>
+    <Reference Include="Streamer.bot.Plugin.Interface.Models">
+      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.Enum.Models.dll</HintPath>
+    </Reference>
+    <Reference Include="Streamer.bot.Common">
+      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Common.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

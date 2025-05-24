@@ -1,0 +1,20 @@
+{
+    "namespaceOrder": [
+        "BeatSaberExtensions.Utility",
+        "BeatSaberExtensions.Utility.Logging",
+        "BeatSaberExtensions.Utility.Http.BeatSaver",
+        "BeatSaberExtensions.Utility.Http.BeatLeader",
+        "BeatSaberExtensions.Utility.Http",
+        "BeatSaberExtensions.Utility.LazyEvaluation",
+        "BeatSaberExtensions.Utility",
+        "*.Extensions.*",
+        "*.Models",
+        "*.Enums"
+    ],
+    "excludeSubDirectories": [
+        "bin",
+        "obj"
+    ],
+    "copyToClipboard": true,
+    "includeLogCommentsInOutput": true
+}

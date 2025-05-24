@@ -1,0 +1,18 @@
+# Build Folders
+**/bin/**
+**/obj/**
+
+# Auto-generated files
+*.sln
+*.slnx
+*.sln.DotSettings
+
+# VS/VS Code specific
+.vs/
+.vscode/
+
+# Rider specific
+.idea/
+
+# Tools and utilities
+.tools/

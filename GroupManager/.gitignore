@@ -1,0 +1,49 @@
+# Build Folders
+/bin/
+/obj/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Auto-generated files
+*.sln
+*.sln.ide
+*.vspscc
+
+.vscode/
+
+# Rider specific
+.idea/
+*.sln.iml
+
+# Log files
+*.log
+
+# VS Code extensions
+.vscode/extensions.json
+
+# NuGet packages
+*.nupkg
+*.snupkg
+*.nuspec
+
+# DotNet specific
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# StyleCop
+StyleCopCache/
+
+# File containing sensitive information, credentials, etc.
+secrets.json
+
+# Tools and utilities
+.tools/
