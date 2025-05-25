@@ -38,7 +38,6 @@ public class CPHInline
         get => CPH.GetGlobalVar<List<string>>("GroupManager.GroupsToClearOnNewStream") ?? [];
         set => CPH.SetGlobalVar("GroupManager.GroupsToClearOnNewStream", value);
     }
-
     private bool ShouldClearGroups =>
         DateTime.UtcNow > LastLiveTimestamp + _timeBetweenStreamsThreshold;
 
@@ -98,7 +97,9 @@ public class CPHInline
     private void SetLastLiveTimestamp()
     {
         if (!CPH.ObsIsConnected() || !CPH.ObsIsStreaming())
+        {
             return;
+        }
 
         lock (_clearGroupsLock)
         {
@@ -117,13 +118,13 @@ public class CPHInline
             }
 
             if (!CPH.GetTimerState(RefreshLastLiveTimestampTimerId))
+            {
                 CPH.EnableTimerById(RefreshLastLiveTimestampTimerId);
+            }
 
             var now = DateTime.UtcNow;
 
             _logger.Log($"Setting {nameof(LastLiveTimestamp)} to {now} in 60 seconds.");
-
-            CPH.Wait(60000);
 
             LastLiveTimestamp = now;
         }
@@ -706,10 +707,10 @@ public static class ExceptionExtensions
 
 public enum TimeUnit
 {
-    Day,
-    Hour,
-    Minute,
     Second,
+    Minute,
+    Hour,
+    Day,
 }
 
 public enum LogAction

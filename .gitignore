@@ -6,12 +6,11 @@
 *.sln
 *.slnx
 *.sln.DotSettings
+.editorconfig
 
-# VS/VS Code specific
+# From IDEs
 .vs/
 .vscode/
-
-# Rider specific
 .idea/
 
 # Tools and utilities
