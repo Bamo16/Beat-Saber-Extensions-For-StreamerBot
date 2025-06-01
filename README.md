@@ -47,7 +47,7 @@
 
 ### 📥 Importing Into StreamerBot
 
-* Copy StreamerBot Import String from [StreamerBot Import File](StreamerBotExtensions.sb) and paste into the `Import` menu in StreamerBot (or download the file and click+drag it into the import window).
+* Copy StreamerBot Import String from [StreamerBot Import File](Beat%20Saber%20Extensions%20For%20StreamerBot.sb) and paste into the `Import` menu in StreamerBot (or download the file and click+drag it into the import window).
 * Commands will be imported in a disabled state, so you will need to navigate to the `Commands` tab and enable all of the commands. They can all be found in the `Chat Commands - Beat Saber Extensions` subgroup in the commands tab.
 * Check the [Troubleshooting](#troubleshooting) section if you run into any issues.
 
