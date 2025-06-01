@@ -8,7 +8,6 @@
     <RootNamespace>BeatSaberExtensions</RootNamespace>
     <LangVersion>latest</LangVersion>
     <NoWarn>CS0114</NoWarn> <!-- Ignore CS114 errors -->
-    <DotnetAssembliesPath>P:\RYAN\Streaming\Dotnet Assemblies</DotnetAssembliesPath>
     <DefineConstants>OUTSIDE_STREAMERBOT</DefineConstants>
   </PropertyGroup>
 

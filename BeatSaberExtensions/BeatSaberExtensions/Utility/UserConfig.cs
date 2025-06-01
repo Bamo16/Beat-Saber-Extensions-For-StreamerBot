@@ -20,13 +20,27 @@ public static class UserConfig
 
     private static readonly List<(string Name, object Value)> _changes = [];
 
-    #region Private Config Values
+    #region Command Ids
 
-    private static int BeatmapCacheDurationMinutes => GetConfigValue(30);
-    private static int SecondsBetweenSongs => GetConfigValue(90);
-    private static int ClearRaidRequestorsAfterMinutes => GetConfigValue(30);
-    private static int MinimumimumAgeDays => GetConfigValue(7);
-    private static int MinimumDurationSeconds => GetConfigValue(90);
+    public const string QueueCommandId = "243fe815-a265-4607-96ad-36a6ec5f055b";
+    public const string MyQueueCommandId = "b6a0b8fa-cedf-421d-8912-1fa771090025";
+    public const string WhenCommandId = "6b38768d-a84d-4beb-833e-1bc6405b310a";
+    public const string BumpCommandId = "720762d9-2da3-47b5-a149-6abb93341ffc";
+    public const string LookupCommandId = "b292e07e-59ff-476c-b03c-99ed05605ad0";
+    public const string RaidRequestCommandId = "97eac70e-4537-4339-8f36-46b58eed97ca";
+    public const string CaptureBeatLeaderCommandId = "f9303f0c-183c-459f-8982-20f8c44da5d5";
+    public const string EnableCommandId = "48c2d642-01ef-4351-99c2-bbf6f89fc7b1";
+    public const string DisableCommandId = "58726a1b-3421-46e0-9d03-1e975c8d93b0";
+    public const string VersionCommandId = "4e45f76d-2a3b-4689-a730-c0ed0cbd6072";
+
+    public static readonly string[] NonModCommandIds =
+    [
+        QueueCommandId,
+        MyQueueCommandId,
+        WhenCommandId,
+        LookupCommandId,
+        VersionCommandId,
+    ];
 
     #endregion
 
@@ -95,8 +109,9 @@ public static class UserConfig
         GetConfigValue(UsernameDisplayMode.UserLoginOnly);
     public static int MaximumQueueItemCount => GetConfigValue(10);
     public static TimeSpan BeatmapCacheDuration =>
-        TimeSpan.FromMinutes(BeatmapCacheDurationMinutes);
-    public static TimeSpan TimeBetweenSongs => TimeSpan.FromSeconds(SecondsBetweenSongs);
+        TimeSpan.FromMinutes(GetConfigValue(30, "BeatmapCacheDurationMinutes"));
+    public static TimeSpan TimeBetweenSongs =>
+        TimeSpan.FromSeconds(GetConfigValue(90, "SecondsBetweenSongs"));
 
     #endregion
 
@@ -105,18 +120,17 @@ public static class UserConfig
     public static int BumpValidationAttempts => GetConfigValue(2);
     public static int BumpValidationDelayMs => GetConfigValue(4000);
     public static bool BumpNextRequestFromRaider => GetConfigValue(false);
-    public static TimeSpan ClearRaidRequestorsAfter =>
-        TimeSpan.FromMinutes(ClearRaidRequestorsAfterMinutes);
 
     #endregion
 
     #region Beatmap Safe Mode Display Options
 
     public static bool AlwaysShowWhenCurated => GetConfigValue(true);
-    public static TimeSpan MinimumAge => TimeSpan.FromDays(MinimumimumAgeDays);
+    public static TimeSpan MinimumAge => TimeSpan.FromDays(GetConfigValue(7, "MinimumimumAgeDays"));
     public static double MinimumScore => GetConfigValue(0.65);
     public static long MinimumUpvotes => GetConfigValue(500L);
-    public static TimeSpan MinimumDuration => TimeSpan.FromSeconds(MinimumDurationSeconds);
+    public static TimeSpan MinimumDuration =>
+        TimeSpan.FromSeconds(GetConfigValue(90, "MinimumDurationSeconds"));
 
     #endregion
 
@@ -154,19 +168,18 @@ public static class UserConfig
 
             SetConfigValue<UsernameDisplayMode>(nameof(UsernameDisplayMode));
             SetConfigValue<int>(nameof(MaximumQueueItemCount));
-            SetConfigValue<int>(nameof(BeatmapCacheDurationMinutes));
-            SetConfigValue<int>(nameof(SecondsBetweenSongs));
+            SetConfigValue<int>("BeatmapCacheDurationMinutes");
+            SetConfigValue<int>("SecondsBetweenSongs");
 
             SetConfigValue<int>(nameof(BumpValidationAttempts));
             SetConfigValue<int>(nameof(BumpValidationDelayMs));
             SetConfigValue<bool>(nameof(BumpNextRequestFromRaider));
-            SetConfigValue<int>(nameof(ClearRaidRequestorsAfterMinutes));
 
             SetConfigValue<bool>(nameof(AlwaysShowWhenCurated));
-            SetConfigValue<int>(nameof(MinimumimumAgeDays));
+            SetConfigValue<int>("MinimumimumAgeDays");
             SetConfigValue<double>(nameof(MinimumScore));
             SetConfigValue<long>(nameof(MinimumUpvotes));
-            SetConfigValue<int>(nameof(MinimumDurationSeconds));
+            SetConfigValue<int>("MinimumDurationSeconds");
 
             if (_changes is { Count: > 0 })
             {

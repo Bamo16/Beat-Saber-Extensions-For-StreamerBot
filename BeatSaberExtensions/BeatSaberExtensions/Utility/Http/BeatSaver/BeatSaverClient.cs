@@ -24,41 +24,23 @@ public class BeatSaverClient(StreamerBotLogger logger, bool logWhenSuccessful = 
     {
         lock (_lock)
         {
-            // Evict expired cached beatmaps
-            _cachedBeatmaps
-                .Where(kvp => kvp is { Value.ShouldEvict: true })
-                .Select(kvp => kvp.Key)
-                .ToList()
-                .ForEach(id => _cachedBeatmaps.Remove(id));
-
-            var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-            var cachedBeatmaps = distinctIds
-                .FindAll(id =>
-                    _cachedBeatmaps.TryGetValue(id, out var cachedBeatmap)
-                    && cachedBeatmap is { ShouldRefresh: false }
-                )
-                .ConvertAll(id => _cachedBeatmaps[id]);
-
-            var cachedIds = cachedBeatmaps
-                .Select(beatmap => beatmap.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var (cachedBeatmaps, idsToFetch) = GetCachedBeatmapsAndIdsToFetch(ids);
 
             return cachedBeatmaps
                 .Concat(
                     (
-                        distinctIds.Where(id => !cachedIds.Contains(id)).ToList() switch
+                        idsToFetch switch
                         {
-                            null or { Count: 0 } => [],
+                            not { Count: > 0 } => [],
 
                             { Count: 1 } => SendHttpRequest<Beatmap>(
-                                relativePath: $"/maps/id/{distinctIds.Single()}"
+                                relativePath: $"/maps/id/{idsToFetch.Single()}"
                             )
                                 is { } singleBeatmap
                                 ? [singleBeatmap]
                                 : [],
 
-                            not null => distinctIds
+                            _ => idsToFetch
                                 .ChunkBy(50)
                                 .Select(chunk =>
                                     $"/maps/ids/{Uri.EscapeDataString(string.Join(",", chunk))}"
@@ -79,5 +61,33 @@ public class BeatSaverClient(StreamerBotLogger logger, bool logWhenSuccessful = 
                     StringComparer.OrdinalIgnoreCase
                 );
         }
+    }
+
+    private (List<Beatmap> CachedBeatmaps, List<string> IdsToFetch) GetCachedBeatmapsAndIdsToFetch(
+        IEnumerable<string> ids
+    )
+    {
+        // Evict expired cached beatmaps
+        _cachedBeatmaps
+            .Where(kvp => kvp is { Value.ShouldEvict: true })
+            .Select(kvp => kvp.Key)
+            .ToList()
+            .ForEach(id => _cachedBeatmaps.Remove(id));
+
+        var cachedBeatmaps = new List<Beatmap>();
+        var idsToFetch = new List<string>();
+
+        foreach (var id in ids.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (
+                _cachedBeatmaps.TryGetValue(id, out var cachedBeatmap)
+                && cachedBeatmap is { ShouldRefresh: false }
+            )
+                cachedBeatmaps.Add(cachedBeatmap);
+            else
+                idsToFetch.Add(id.ToLower());
+        }
+
+        return (cachedBeatmaps, idsToFetch);
     }
 }

@@ -18,37 +18,43 @@ namespace BeatSaberExtensions.Utility;
 
 public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger logger) : IDisposable
 {
-    private const string QueueCommandId = "243fe815-a265-4607-96ad-36a6ec5f055b";
-    private const string MyQueueCommandId = "b6a0b8fa-cedf-421d-8912-1fa771090025";
-    private const string WhenCommandId = "6b38768d-a84d-4beb-833e-1bc6405b310a";
-    private const string BumpCommandId = "720762d9-2da3-47b5-a149-6abb93341ffc";
-    private const string LookupCommandId = "b292e07e-59ff-476c-b03c-99ed05605ad0";
-    private const string EnableCommandId = "48c2d642-01ef-4351-99c2-bbf6f89fc7b1";
-    private const string DisableCommandId = "58726a1b-3421-46e0-9d03-1e975c8d93b0";
-    private const string RaidRequestCommandId = "97eac70e-4537-4339-8f36-46b58eed97ca";
-    private const string CaptureBeatLeaderCommandId = "f9303f0c-183c-459f-8982-20f8c44da5d5";
-
-    private static readonly string[] _nonModCommandIds =
-    [
-        QueueCommandId,
-        MyQueueCommandId,
-        WhenCommandId,
-        LookupCommandId,
-    ];
+    private static readonly Version _version = new Version(0, 1, 0);
 
     private readonly BeatSaberService _beatSaberService = new(cph, logger);
+
+    private Dictionary<string, Func<Dictionary<string, object>, string>> _commands;
+    private Dictionary<string, Func<Dictionary<string, object>, string>> Commands =>
+        _commands ??= new Dictionary<string, Func<Dictionary<string, object>, string>>()
+        {
+            [UserConfig.QueueCommandId] = HandleQueueCommand,
+            [UserConfig.MyQueueCommandId] = HandleMyQueueCommand,
+            [UserConfig.WhenCommandId] = HandleWhenCommand,
+            [UserConfig.BumpCommandId] = HandleBumpCommand,
+            [UserConfig.LookupCommandId] = HandleLookupCommand,
+            [UserConfig.RaidRequestCommandId] = HandleRaidRequest,
+            [UserConfig.CaptureBeatLeaderCommandId] = HandleCaptureBeatLeaderId,
+            [UserConfig.EnableCommandId] = _ => HandleStateCommand(true),
+            [UserConfig.DisableCommandId] = _ => HandleStateCommand(false),
+            [UserConfig.VersionCommandId] = _ => HandleVersionCommand(),
+        };
+
+    public void Dispose() => _beatSaberService?.Dispose();
 
     public string HandleStreamerBotEvent(EventType eventType, Dictionary<string, object> sbArgs) =>
         eventType switch
         {
             EventType.TwitchRaid => HandleTwitchRaid(sbArgs),
 
-            EventType.CommandTriggered => HandleCommandTriggered(sbArgs),
+            EventType.CommandTriggered
+                when sbArgs.TryGetArg<string>("commandId", out var commandId) =>
+                Commands.TryGetValue(commandId, out var command)
+                    ? command.Invoke(sbArgs)
+                    : throw new InvalidOperationException(
+                        $"Unsupported commandId: \"{commandId}\" (\"{sbArgs.GetArgOrDefault<string>("command")}\")."
+                    ),
 
             _ => throw new InvalidOperationException($"Unsupported EventType: {eventType}."),
         };
-
-    public void Dispose() => _beatSaberService?.Dispose();
 
     private string HandleTwitchRaid(Dictionary<string, object> sbArgs)
     {
@@ -73,45 +79,6 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
         return null;
     }
-
-    private string HandleCommandTriggered(Dictionary<string, object> sbArgs) =>
-        sbArgs.GetArgOrDefault<string>("commandId") switch
-        {
-            // Beat Saber Extensions needs to see the Beat Saber process running once to detect its plugin locations
-            _ when !_beatSaberService.IsConfigured => UserConfig.NotConfiguredMessage,
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrqueue
-            QueueCommandId => HandleQueueCommand(sbArgs),
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrmyqueue
-            MyQueueCommandId => HandleMyQueueCommand(sbArgs),
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrwhen
-            WhenCommandId => HandleWhenCommand(sbArgs),
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrlookup
-            LookupCommandId => HandleLookupCommand(sbArgs),
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrbump
-            BumpCommandId => HandleBumpCommand(sbArgs),
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrenable
-            EnableCommandId => HandleStateCommand(true),
-
-            // [Chat Commands - Beat Saber Extensions] - !bsrdisable
-            DisableCommandId => HandleStateCommand(false),
-
-            // [Chat Commands - Beat Saber Extensions] - Bump Raid Request
-            RaidRequestCommandId => ProcessRaidRequest(sbArgs),
-
-            // [Chat Commands - Beat Saber Extensions] - Capture BeatLeader ID
-            CaptureBeatLeaderCommandId => HandleCaptureBeatLeaderId(sbArgs),
-
-            // Failure Case
-            var commandId => throw new InvalidOperationException(
-                $"Unsupported Command: \"{sbArgs.GetArgOrDefault<string>("command")}\" (CommandId: {commandId})."
-            ),
-        };
 
     private string HandleQueueCommand(Dictionary<string, object> sbArgs) =>
         _beatSaberService is not { Queue: { Count: > 0 } queue }
@@ -258,7 +225,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
     {
         logger.LogInfo($"Processing !bsrenable/!bsrdisable command with State: \"{state}\".");
 
-        foreach (var commandId in _nonModCommandIds)
+        foreach (var commandId in UserConfig.NonModCommandIds)
         {
             if (state)
                 cph.EnableCommand(commandId);
@@ -281,6 +248,9 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
         return null;
     }
 
+    private string HandleVersionCommand() =>
+        $"Beat Saber Extensions For StreamerBot (Version: {_version})";
+
     private int GetQueueDisplayCountOrDefault(Dictionary<string, object> sbArgs) =>
         sbArgs.TryGetArg("input0", out string input0)
         && int.TryParse(input0, out var maxCount)
@@ -288,7 +258,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
             ? maxCount
             : UserConfig.MaximumQueueItemCount;
 
-    private string ProcessRaidRequest(Dictionary<string, object> sbArgs)
+    private string HandleRaidRequest(Dictionary<string, object> sbArgs)
     {
         var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs);
 
@@ -308,7 +278,9 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
         if (!_beatSaberService.ValidateBeatmapId(bsrId))
         {
-            // Invalid BSR ID. Do nothing.
+            logger.Log(
+                $"{user.GetFormattedDisplayName()} attempted to make a raid request using an invalid BSR Id. Taking no action."
+            );
             return null;
         }
 

@@ -9,8 +9,10 @@ public static class FormattableExtensions
         where T2 : IFormattable
     {
         var numFormat = format ?? value.GetDefaultNumberFormat();
+        var valueStr = value.ToString(numFormat, null);
+        var compareValueStr = compareValue.ToString(numFormat, null);
 
-        return value.ToString(numFormat, null) == compareValue.ToString(numFormat, null);
+        return valueStr == compareValueStr;
     }
 
     private static string GetDefaultNumberFormat<T>(this T value)

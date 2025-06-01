@@ -11,10 +11,7 @@ using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Enums;
 using Streamer.bot.Plugin.Interface.Model;
 
-public class CPHInline
-#if OUTSIDE_STREAMERBOT
-    : CPHInlineBase
-#endif
+public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting code into streamer.bot
 {
     private const string ActionName = "Group Manager";
     private const string RefreshLastLiveTimestampTimerId = "fe0b585f-4d61-458d-897b-5d6e876cc574";

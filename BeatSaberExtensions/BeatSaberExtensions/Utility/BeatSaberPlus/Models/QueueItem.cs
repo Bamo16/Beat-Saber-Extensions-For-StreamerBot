@@ -18,9 +18,7 @@ public class QueueItem(
 )
 {
     public string Id { get; } = id;
-
     public Beatmap Beatmap { get; } = beatmaps.TryGetValue(id, out var beatmap) ? beatmap : null;
-
     public BaseUserInfo User { get; } = cph.GetUserInfo<BaseUserInfo>(userLogin);
     public int Position { get; } = index + 1;
     public string SongMessage { get; } = songMessage;

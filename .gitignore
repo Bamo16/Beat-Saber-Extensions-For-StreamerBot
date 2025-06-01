@@ -6,7 +6,6 @@
 *.sln
 *.slnx
 *.sln.DotSettings
-.editorconfig
 
 # From IDEs
 .vs/
@@ -15,3 +14,9 @@
 
 # Tools and utilities
 .tools/
+
+# Misc
+**/.editorconfig
+**/Directory.Build.props
+**/BuildConfig.json
+NOTES.md

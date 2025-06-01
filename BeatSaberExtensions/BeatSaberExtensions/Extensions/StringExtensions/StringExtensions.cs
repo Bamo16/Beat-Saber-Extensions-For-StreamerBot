@@ -12,7 +12,7 @@ public static class StringExtensions
     private const int MaxChatMessageLength = 500;
     private const int MaxChatLineLength = 35;
     private const string TruncationReplacement = "…";
-    private const char UnicodeWhitespaceChar = '⠀';
+    private const char BraillePatternBlankChar = '\u2800';
 
     public static string Pluralize<T>(
         this string noun,
@@ -58,7 +58,6 @@ public static class StringExtensions
         var trunc = (truncationReplacement ?? string.Empty).Trim();
         var targetLength = maxLength - trunc.Length;
         var sb = new StringBuilder();
-
         var enumerator = StringInfo.GetTextElementEnumerator(sanitized);
 
         // Input is longer than maxLength. Truncate and append truncationReplacement.
@@ -66,36 +65,37 @@ public static class StringExtensions
         {
             if (sb.Length + element.Length > targetLength)
             {
-                return sb.Append(truncationReplacement).ToString();
+                return sb.Append(trunc).ToString();
             }
 
             sb.Append(element);
         }
 
-        return sb.Append(truncationReplacement).ToString();
+        return sb.Append(trunc).ToString();
     }
 
     public static string FormatMultilineChatMessage(
         this IEnumerable<string> chatLines,
-        int maxMessageLength = 500,
         string lineTruncationReplacement = TruncationReplacement,
         string messageTruncationReplacement = TruncationReplacement
     ) =>
         string.Join(
                 "\n",
-                chatLines.Select(line =>
-                    line.FormatChatMessageLine(maxMessageLength, lineTruncationReplacement)
-                )
+                chatLines.Select(line => line.FormatChatMessageLine(lineTruncationReplacement))
             )
-            .Truncate(maxMessageLength, messageTruncationReplacement);
+            .Truncate(MaxChatMessageLength, messageTruncationReplacement);
 
     public static bool TryParseDateTime(this string value, out DateTime result)
     {
         if (!DateTime.TryParse(value, null, DateTimeStyles.RoundtripKind, out result))
+        {
             return false;
+        }
 
         if (result is { Kind: DateTimeKind.Unspecified })
+        {
             result = DateTime.SpecifyKind(result, DateTimeKind.Local);
+        }
 
         result = result.ToUniversalTime();
         return true;
@@ -103,15 +103,14 @@ public static class StringExtensions
 
     private static string FormatChatMessageLine(
         this string chatLine,
-        int maxLineLength = MaxChatLineLength,
         string truncationReplacement = TruncationReplacement
     ) =>
         string.Join(
-                UnicodeWhitespaceChar.ToString(),
+                BraillePatternBlankChar.ToString(),
                 chatLine
                     .Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
                     .Select(part => part.Trim())
             )
-            .Truncate(maxLineLength, truncationReplacement)
-            .PadRight(maxLineLength, UnicodeWhitespaceChar);
+            .Truncate(MaxChatLineLength, truncationReplacement)
+            .PadRight(MaxChatLineLength, BraillePatternBlankChar);
 }

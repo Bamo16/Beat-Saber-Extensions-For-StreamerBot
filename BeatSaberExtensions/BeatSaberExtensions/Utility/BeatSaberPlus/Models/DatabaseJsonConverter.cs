@@ -41,7 +41,7 @@ public class DatabaseJsonConverter(IInlineInvokeProxy cph, BeatSaverClient beatS
             Queue =
             [
                 .. internalData.Queue.Select(
-                    (item, index) => item.ConvertToQueueItem(index + 1, beatmaps, cph)
+                    (item, index) => item.ConvertToQueueItem(index, beatmaps, cph)
                 ),
             ],
             History = internalData
@@ -68,10 +68,10 @@ public class DatabaseJsonConverter(IInlineInvokeProxy cph, BeatSaverClient beatS
         public List<QueueItemInternal> Queue { get; set; }
 
         [JsonProperty("history")]
-        public List<DatabaseJsonBeatmapInternal> History { get; set; }
+        public List<BeatmapInternal> History { get; set; }
 
         [JsonProperty("blacklist")]
-        public List<DatabaseJsonBeatmapInternal> Blacklist { get; set; }
+        public List<BeatmapInternal> Blacklist { get; set; }
 
         [JsonProperty("bannedusers")]
         public List<string> BannedUsers { get; set; }
@@ -101,7 +101,7 @@ public class DatabaseJsonConverter(IInlineInvokeProxy cph, BeatSaverClient beatS
         ) => new(Id, UserLogin, SongMessage, index, beatmaps, cph);
     }
 
-    private class DatabaseJsonBeatmapInternal
+    private class BeatmapInternal
     {
         [JsonProperty("key")]
         public string Id { get; set; }
