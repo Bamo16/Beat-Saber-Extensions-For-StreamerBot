@@ -52,10 +52,8 @@ public static class UserConfig
         );
     public static string QueueEmptyMessage =>
         GetConfigValue("There aren't currently any songs in the queue.");
-    public static string UserHasNoRequestsMessage =>
-        GetConfigValue("Only moderators can use the !bsrbump command.🚫");
     public static string NonModeratorBumpMessage =>
-        GetConfigValue("Only moderators can use the !bsrbump command.");
+        GetConfigValue("Only moderators can use the !bsrbump command.🚫");
     public static string BlankInputBumpMessage =>
         GetConfigValue(
             "You must provide either a BSR Id, username, or displayname for the !bsrbump command.🚫"
@@ -69,8 +67,6 @@ public static class UserConfig
     public static string StateCommandEnabledMessage => GetConfigValue("Enabled Non-mod commands.");
     public static string StateCommandDisabledMessage =>
         GetConfigValue("Disabled Non-mod commands.");
-
-    // add to arguments
     public static string RaidRequestBumpMessage => GetConfigValue("Raid request bump");
 
     #endregion
@@ -92,8 +88,8 @@ public static class UserConfig
     public static string LookupInvalidBsrIdFormat => GetConfigValue("Invalid beatmap id: \"{0}\".");
     public static string LookupBeatmapNoFoundFormat =>
         GetConfigValue("Failed to find beatmap for id: \"{0}\".");
-
-    // add to arguments
+    public static string UserHasNoRequestsFormat =>
+        GetConfigValue("{0} {1} not currently have any requests in the queue.");
     public static string LookupNoRecentScoresFormat =>
         GetConfigValue("Didn't find any recent scores by {0} on {1}.");
     public static string LookupScoreResultFormat =>
@@ -145,7 +141,6 @@ public static class UserConfig
 
             SetConfigValue<string>(nameof(NotConfiguredMessage));
             SetConfigValue<string>(nameof(QueueEmptyMessage));
-            SetConfigValue<string>(nameof(UserHasNoRequestsMessage));
             SetConfigValue<string>(nameof(NonModeratorBumpMessage));
             SetConfigValue<string>(nameof(BlankInputBumpMessage));
             SetConfigValue<string>(nameof(FailedToGetBeatLeaderIdMessage));
@@ -162,6 +157,7 @@ public static class UserConfig
             SetConfigValue<string>(nameof(SongMessageFormat));
             SetConfigValue<string>(nameof(LookupInvalidBsrIdFormat));
             SetConfigValue<string>(nameof(LookupBeatmapNoFoundFormat));
+            SetConfigValue<string>(nameof(UserHasNoRequestsFormat));
             SetConfigValue<string>(nameof(LookupNoRecentScoresFormat));
             SetConfigValue<string>(nameof(LookupScoreResultFormat));
             SetConfigValue<string>(nameof(WhenMessageFormat));

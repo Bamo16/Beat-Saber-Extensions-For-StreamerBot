@@ -93,21 +93,32 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
                 )
                 .FormatMultilineChatMessage();
 
-    private string HandleMyQueueCommand(Dictionary<string, object> sbArgs) =>
-        _beatSaberService is not { Queue: { Count: > 0 } queue } ? UserConfig.QueueEmptyMessage
-        : cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs, "input0", "userName") is var user
-        && queue
+    private string HandleMyQueueCommand(Dictionary<string, object> sbArgs)
+    {
+        if (_beatSaberService is not { Queue: { Count: > 0 } queue })
+        {
+            return UserConfig.QueueEmptyMessage;
+        }
+
+        var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs, "input0", "userName");
+        var isCaller = user.IsCaller(sbArgs);
+        var userRequests = queue
             .FindAll(item => item.BelongsToUser(user))
-            .ConvertAll(item => item.ToFriendlyString(withPosition: true, withUserName: false))
-            is not { Count: > 0 } userRequests
-            ? UserConfig.UserHasNoRequestsMessage
-        : userRequests
-            .Prepend(
-                user.IsCaller(sbArgs)
-                    ? "Your Requests:"
-                    : $"{user.GetFormattedDisplayName()}'s Requests:"
-            )
+            .ConvertAll(item => item.ToFriendlyString(withPosition: true, withUserName: false));
+
+        if (!userRequests.Any())
+        {
+            return string.Format(
+                UserConfig.UserHasNoRequestsFormat,
+                isCaller ? "You" : user.GetFormattedDisplayName(),
+                isCaller ? "do" : "does"
+            );
+        }
+
+        return userRequests
+            .Prepend(isCaller ? "Your Requests:" : $"{user.GetFormattedDisplayName()}'s Requests:")
             .FormatMultilineChatMessage();
+    }
 
     private string HandleWhenCommand(Dictionary<string, object> sbArgs)
     {
@@ -121,7 +132,13 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
         if (request is null)
         {
-            return UserConfig.UserHasNoRequestsMessage;
+            var isCaller = user.IsCaller(sbArgs);
+
+            return string.Format(
+                UserConfig.UserHasNoRequestsFormat,
+                isCaller ? "You" : user.GetFormattedDisplayName(),
+                isCaller ? "do" : "does"
+            );
         }
 
         var estimatedWait = queue
@@ -213,10 +230,13 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
             return string.Format(UserConfig.InvalidInputBumpFormat, input0);
 
         if (GetQueueItem(user: user) is not { } queueItemByUser)
+        {
             return string.Format(
-                UserConfig.UserHasNoRequestsMessage,
-                user.GetFormattedDisplayName()
+                UserConfig.UserHasNoRequestsFormat,
+                user.GetFormattedDisplayName(),
+                "does"
             );
+        }
 
         return ProcessSongBump(queueItemByUser, out _, approver: approver);
     }
