@@ -161,15 +161,15 @@ public static class InlineInvokeProxyExtensions
         foreach (var groupUser in cph.UsersInGroup(LocalizedDisplayUsersGroup))
         {
             if (
-                groupUser is not { Login: { } login, Username: { } userName }
-                || _userLookup.ContainsKey(userName)
-                || cph.GetTwitchUserByLogin<BaseUserInfo>(login)
-                    is not { UserLogin: { } userLogin, UserName: { } displayName } user
+                groupUser is { Login: { } login, Username: { } userName }
+                && !_userLookup.ContainsKey(userName)
+                && cph.GetTwitchUserByLogin<BaseUserInfo>(login)
+                    is { UserLogin: { } userLogin, UserName: { } displayName } user
             )
-                continue;
-            _userLookup[displayName] = user;
-
-            _userLookup.TryAdd(userLogin, user);
+            {
+                _userLookup[displayName] = user;
+                _userLookup.TryAdd(userLogin, user);
+            }
         }
     }
 
