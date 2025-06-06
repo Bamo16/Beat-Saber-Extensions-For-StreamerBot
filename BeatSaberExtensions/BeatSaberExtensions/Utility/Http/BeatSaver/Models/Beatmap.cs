@@ -67,18 +67,11 @@ public class Beatmap
     private readonly DateTime _fetchedAt = DateTime.UtcNow;
 
     [JsonIgnore]
-    public bool ShouldEvict => DateTime.UtcNow > _fetchedAt.Add(UserConfig.BeatmapCacheDuration);
+    public bool ShouldEvict => DateTime.UtcNow > _fetchedAt + UserConfig.BeatmapCacheDuration;
 
     [JsonIgnore]
     public bool ShouldRefresh =>
-        DateTime.UtcNow
-        > _fetchedAt
-            .Add(UserConfig.BeatmapCacheDuration)
-            .Subtract(
-                TimeSpan.FromSeconds(
-                    Math.Max(30, 0.2 * UserConfig.BeatmapCacheDuration.TotalSeconds)
-                )
-            );
+        DateTime.UtcNow > _fetchedAt + UserConfig.BeatmapRefreshAfterDuration;
 
     [JsonIgnore]
     public string DisplayString =>

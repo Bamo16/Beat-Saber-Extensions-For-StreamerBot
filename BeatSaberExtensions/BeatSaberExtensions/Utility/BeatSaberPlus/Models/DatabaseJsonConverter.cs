@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using BeatSaberExtensions.Utility.Http.BeatSaver;
 using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
@@ -23,7 +24,27 @@ public class DatabaseJsonConverter(IInlineInvokeProxy cph, BeatSaverClient beatS
         DatabaseJson existingValue,
         bool hasExistingValue,
         JsonSerializer serializer
-    ) => ParseDatabaseJson(JObject.Load(reader), serializer);
+    )
+    {
+        var root = JObject.Load(reader);
+        var internalData = root.ToObject<DatabaseJsonInternal>(serializer);
+        var beatmaps = beatSaverClient.GetBeatmaps(internalData.Queue.Select(item => item.Id));
+        var queue = internalData.Queue.Select(
+            (item, index) => item.ConvertToQueueItem(index, beatmaps, cph)
+        );
+        var remaps = internalData
+            .Remaps.GroupBy(remap => remap.From)
+            .Select(group => (From: group.Key, group.First().To));
+
+        return new DatabaseJson(
+            queue,
+            internalData.History.Select(item => item.Id),
+            internalData.Blacklist.Select(item => item.Id),
+            internalData.BannedUsers,
+            internalData.BannedMappers,
+            remaps
+        );
+    }
 
     public override void WriteJson(
         JsonWriter writer,
@@ -31,56 +52,25 @@ public class DatabaseJsonConverter(IInlineInvokeProxy cph, BeatSaverClient beatS
         JsonSerializer serializer
     ) => throw new NotImplementedException();
 
-    private DatabaseJson ParseDatabaseJson(JObject root, JsonSerializer serializer)
-    {
-        var internalData = root.ToObject<DatabaseJsonInternal>(serializer);
-        var beatmaps = beatSaverClient.GetBeatmaps(internalData.Queue.Select(item => item.Id));
-
-        return new DatabaseJson
-        {
-            Queue =
-            [
-                .. internalData.Queue.Select(
-                    (item, index) => item.ConvertToQueueItem(index, beatmaps, cph)
-                ),
-            ],
-            History = internalData
-                .History.Select(item => item.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase),
-            Blacklist = internalData
-                .Blacklist.Select(item => item.Id)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase),
-            BannedUsers = internalData.BannedUsers.ToHashSet(StringComparer.OrdinalIgnoreCase),
-            BannedMappers = internalData.BannedMappers.ToHashSet(StringComparer.OrdinalIgnoreCase),
-            Remaps = internalData
-                .Remaps.GroupBy(remap => remap.From)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.First().To.ToLowerInvariant(),
-                    StringComparer.OrdinalIgnoreCase
-                ),
-        };
-    }
-
     private class DatabaseJsonInternal
     {
         [JsonProperty("queue")]
-        public List<QueueItemInternal> Queue { get; set; }
+        public ReadOnlyCollection<QueueItemInternal> Queue { get; set; }
 
         [JsonProperty("history")]
-        public List<BeatmapInternal> History { get; set; }
+        public ReadOnlyCollection<BeatmapInternal> History { get; set; }
 
         [JsonProperty("blacklist")]
-        public List<BeatmapInternal> Blacklist { get; set; }
+        public ReadOnlyCollection<BeatmapInternal> Blacklist { get; set; }
 
         [JsonProperty("bannedusers")]
-        public List<string> BannedUsers { get; set; }
+        public ReadOnlyCollection<string> BannedUsers { get; set; }
 
         [JsonProperty("bannedmappers")]
-        public List<string> BannedMappers { get; set; }
+        public ReadOnlyCollection<string> BannedMappers { get; set; }
 
         [JsonProperty("remaps")]
-        public List<RemapInternal> Remaps { get; set; }
+        public ReadOnlyCollection<RemapInternal> Remaps { get; set; }
     }
 
     private class QueueItemInternal

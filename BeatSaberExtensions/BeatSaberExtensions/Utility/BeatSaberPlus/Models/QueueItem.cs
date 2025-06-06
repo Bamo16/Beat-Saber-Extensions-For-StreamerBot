@@ -29,8 +29,7 @@ public class QueueItem(
         && string.Equals(songUserLogin, userLogin, StringComparison.OrdinalIgnoreCase);
 
     public string ToFriendlyString(bool withPosition, bool withUserName) =>
-        string.Format(
-            "{0}{1}{2}",
+        string.Concat(
             withPosition ? $"{Position} " : string.Empty,
             withUserName ? $"{User.GetFormattedDisplayName()} " : string.Empty,
             Beatmap is { DisplayString: { } displayString } ? displayString : Id
