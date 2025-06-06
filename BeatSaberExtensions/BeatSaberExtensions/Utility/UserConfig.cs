@@ -11,14 +11,14 @@ namespace BeatSaberExtensions.Utility;
 
 public static class UserConfig
 {
-    private static readonly object _beatSaberServiceLock = new();
+    private static readonly object _beatSaberServiceLock = new object();
     private static readonly ConcurrentDictionary<string, object> _beatSaberServiceValues = [];
+    private static readonly List<(string Name, object Value)> _changes = [];
 
-    private static StreamerBotLogger _logger;
+    public static readonly Version Version = new Version(0, 1, 1);
+
     private static bool _beatSaberServiceValuesInitialized;
     private static Dictionary<string, object> _sbArgs;
-
-    private static readonly List<(string Name, object Value)> _changes = [];
 
     #region Command Ids
 
@@ -103,9 +103,13 @@ public static class UserConfig
 
     public static UsernameDisplayMode UsernameDisplayMode =>
         GetConfigValue(UsernameDisplayMode.UserLoginOnly);
+    public static int DefaultQueueItemCount => GetConfigValue(5);
     public static int MaximumQueueItemCount => GetConfigValue(10);
     public static TimeSpan BeatmapCacheDuration =>
         TimeSpan.FromMinutes(GetConfigValue(30, "BeatmapCacheDurationMinutes"));
+    public static TimeSpan BeatmapRefreshAfterDuration =>
+        BeatmapCacheDuration
+        - TimeSpan.FromSeconds(Math.Min(30, 0.2 * BeatmapCacheDuration.TotalSeconds));
     public static TimeSpan TimeBetweenSongs =>
         TimeSpan.FromSeconds(GetConfigValue(90, "SecondsBetweenSongs"));
 
@@ -129,8 +133,6 @@ public static class UserConfig
         TimeSpan.FromSeconds(GetConfigValue(90, "MinimumDurationSeconds"));
 
     #endregion
-
-    public static void Init(StreamerBotLogger logger) => _logger = logger;
 
     public static void SetConfigValues(Dictionary<string, object> sbArgs)
     {
@@ -185,7 +187,7 @@ public static class UserConfig
                     !_beatSaberServiceValuesInitialized ? "Initialized" : "Updated"
                 );
 
-                _logger.LogObject(logObject, logMessageLabel, truncateAfterChars: int.MaxValue);
+                Logger.LogObject(logObject, logMessageLabel, truncateAfterChars: int.MaxValue);
             }
 
             if (_beatSaberServiceValuesInitialized is false)
@@ -204,7 +206,7 @@ public static class UserConfig
 
         if (!_beatSaberServiceValuesInitialized && !argExists)
         {
-            _logger.LogWarn(
+            Logger.LogWarn(
                 $"Missing StreamerBot argument: \"{memberName}\". Default value will be used."
             );
 

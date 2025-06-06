@@ -82,6 +82,14 @@ public static class InlineInvokeProxyExtensions
             persisted
         );
 
+    public static void SetCommandState(this IInlineInvokeProxy cph, string commandId, bool state)
+    {
+        if (state)
+            cph.EnableCommand(commandId);
+        else
+            cph.DisableCommand(commandId);
+    }
+
     public static bool StreamIsLive(this IInlineInvokeProxy cph) =>
         cph.ObsIsConnected() && cph.ObsIsStreaming();
 
