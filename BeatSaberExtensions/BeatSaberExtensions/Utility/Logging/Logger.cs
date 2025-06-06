@@ -10,19 +10,32 @@ using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility.Logging;
 
-public class StreamerBotLogger(
-    IInlineInvokeProxy cph,
-    string logMessageTag,
-    LogAction defaultLogAction = LogAction.Info,
-    int afterChars = 1000,
-    int truncateAfterCharsError = 3000
-)
+public static class Logger
 {
-    private static readonly object _lock = new();
+    private static IInlineInvokeProxy _cph;
+    private static string _logMessageTag;
+    private static LogAction _defaultLogAction;
+    private static int _truncateAfterChars;
+    private static int _truncateAfterCharsError;
 
-    #region Explicit Log Action Logger Methods
+    public static bool IsInitialized => _cph is not null;
 
-    public void LogDebug(
+    public static void Init(
+        IInlineInvokeProxy cph,
+        string logMessageTag,
+        LogAction defaultLogAction = LogAction.Info,
+        int truncateAfterChars = 1000,
+        int truncateAfterCharsError = 3000
+    )
+    {
+        _cph = cph;
+        _logMessageTag = logMessageTag;
+        _defaultLogAction = defaultLogAction;
+        _truncateAfterChars = truncateAfterChars;
+        _truncateAfterCharsError = truncateAfterCharsError;
+    }
+
+    public static void LogDebug(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
@@ -36,39 +49,35 @@ public class StreamerBotLogger(
             lineNumber
         );
 
-    public void LogVerbose(
+    public static void LogVerbose(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Verbose, truncateAfterChars, methodName, lineNumber);
 
-    public void LogInfo(
+    public static void LogInfo(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Info, truncateAfterChars, methodName, lineNumber);
 
-    public void LogWarn(
+    public static void LogWarn(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Warn, truncateAfterChars, methodName, lineNumber);
 
-    public void LogError(
+    public static void LogError(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Error, truncateAfterChars, methodName, lineNumber);
 
-    #endregion
-
-    #region Action Start Logger Methods
-
-    public void LogActionStart(
+    public static void LogActionStart(
         Dictionary<string, object> args,
         out bool executeSuccess,
         out Dictionary<string, object> sbArgs,
@@ -77,28 +86,21 @@ public class StreamerBotLogger(
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        lock (_lock)
-        {
-            executeSuccess = false;
-            sbArgs = new Dictionary<string, object>(args);
-            eventType = cph.GetEventType();
-        }
+        executeSuccess = false;
+        sbArgs = new Dictionary<string, object>(args);
+        eventType = _cph.GetEventType();
 
         Log("Action Started.", methodName: methodName, lineNumber: lineNumber);
     }
 
-    #endregion
-
-    #region Action Completion Logger Methods
-
-    public void LogActionCompletion(
+    public static void LogActionCompletion(
         bool executeSuccess,
         string successArgName = "ExecuteSuccess",
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        cph.SetArgument(successArgName, executeSuccess);
+        _cph.SetArgument(successArgName, executeSuccess);
 
         Log(
             $"Action completed with {successArgName}: {executeSuccess}.",
@@ -108,11 +110,7 @@ public class StreamerBotLogger(
         );
     }
 
-    #endregion
-
-    #region Object Logger Methods
-
-    public void LogObject(
+    public static void LogObject(
         object logObject,
         string label = null,
         LogAction? logAction = null,
@@ -131,11 +129,7 @@ public class StreamerBotLogger(
             lineNumber
         );
 
-    #endregion
-
-    #region Exception Logger Methods
-
-    public void HandleException(
+    public static void HandleException(
         Exception ex,
         bool setArgument = true,
         int? truncateAfterChars = null,
@@ -148,52 +142,42 @@ public class StreamerBotLogger(
 
         if (setArgument)
         {
-            var argumentValue = cph.TryGetArg<string>(argName, out var currentValue)
+            var argumentValue = _cph.TryGetArg<string>(argName, out var currentValue)
                 ? string.Join("; ", currentValue, message)
                 : message;
 
-            cph.SetArgument(argName, argumentValue);
+            _cph.SetArgument(argName, argumentValue);
         }
 
         LogError(message, truncateAfterChars, methodName, lineNumber);
     }
 
-    #endregion
-
-    #region General Logger Methods
-
-    public void Log(
+    public static void Log(
         string logLine,
         LogAction? logAction = null,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => (
-            (logAction ?? defaultLogAction) switch
+            (logAction ?? _defaultLogAction) switch
             {
-                _ when cph is null => _ => { },
-                LogAction.Debug => cph.LogDebug,
-                LogAction.Verbose => cph.LogVerbose,
-                LogAction.Info => cph.LogInfo,
-                LogAction.Warn => cph.LogWarn,
-                LogAction.Error => cph.LogError,
+                _ when _cph is null => _ => { },
+                LogAction.Debug => _cph.LogDebug,
+                LogAction.Verbose => _cph.LogVerbose,
+                LogAction.Info => _cph.LogInfo,
+                LogAction.Warn => _cph.LogWarn,
+                LogAction.Error => _cph.LogError,
                 _ => new Action<string>(_ => { }),
             }
-        )(Truncate($"[{logMessageTag}] [{methodName} L{lineNumber}] {logLine}", logAction, truncateAfterChars));
+        )(Truncate($"[{_logMessageTag}] [{methodName} L{lineNumber}] {logLine}", logAction, truncateAfterChars));
 
-    #endregion
-
-    #region Private Methods
-
-    private string Truncate(
+    private static string Truncate(
         string logLine,
         LogAction? logAction = null,
         int? truncateAfterChars = null
     ) =>
         logLine.Truncate(
             truncateAfterChars
-                ?? (logAction is LogAction.Error ? truncateAfterCharsError : afterChars)
+                ?? (logAction is LogAction.Error ? _truncateAfterCharsError : _truncateAfterChars)
         );
-
-    #endregion
 }

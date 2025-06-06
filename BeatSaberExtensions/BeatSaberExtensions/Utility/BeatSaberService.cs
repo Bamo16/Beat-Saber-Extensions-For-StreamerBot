@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -19,7 +20,7 @@ using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility;
 
-public class BeatSaberService(IInlineInvokeProxy cph, StreamerBotLogger logger) : IDisposable
+public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
 {
     private const string RaidRequestorGroupName = "Raid Requestors";
     private const string GlobalVarPrefix = "BeatSaberExtensions";
@@ -35,81 +36,23 @@ public class BeatSaberService(IInlineInvokeProxy cph, StreamerBotLogger logger) 
         (value) => value is null
     );
 
+    private readonly BeatSaverClient _beatSaverClient = new BeatSaverClient();
+    private readonly BeatLeaderClient _beatLeaderClient = new BeatLeaderClient();
+
     private Cached<bool> _queueState;
     private Cached<string> _beatSaberRoot;
     private JsonSerializer _databaseJsonSerializer;
     private Cached<DatabaseJson> _databaseJson;
-    private BeatSaverClient _beatSaverClient;
-    private BeatLeaderClient _beatLeaderClient;
     private bool _waitingForBeatLeaderId;
 
     public bool IsConfigured => !string.IsNullOrEmpty(GetBeatSaberRoot());
-    public BeatSaverClient BeatSaverClient => _beatSaverClient ??= new BeatSaverClient(logger);
-    public BeatLeaderClient BeatLeaderClient => _beatLeaderClient ??= new BeatLeaderClient(logger);
+    public BeatSaverClient BeatSaverClient => _beatSaverClient;
+    public BeatLeaderClient BeatLeaderClient => _beatLeaderClient;
     public DatabaseJson DatabaseJson => GetDatabaseJson();
-    public List<QueueItem> Queue => DatabaseJson.Queue;
-
+    public ReadOnlyCollection<QueueItem> Queue => DatabaseJson.Queue;
     public string BeatLeaderId
     {
-        get
-        {
-            if (TryGetBeatLeaderIdGlobal(out var beatLeaderId))
-            {
-                logger.Log($"Retrieved BeatLeaderId: {beatLeaderId}");
-
-                return beatLeaderId;
-            }
-
-            if (_waitingForBeatLeaderId)
-            {
-                logger.LogWarn(
-                    "Another thread is waiting for the BeatLeaderId. Waiting for it to complete..."
-                );
-
-                return TryWaitForBeatLeaderId(out beatLeaderId, () => !_waitingForBeatLeaderId)
-                    ? beatLeaderId
-                    : null;
-            }
-
-            lock (_beatLeaderIdLock)
-            {
-                // Check again inside lock to avoid race conditions
-                if (TryGetBeatLeaderIdGlobal(out beatLeaderId))
-                {
-                    logger.Log($"Retrieved BeatLeaderId inside lock: {beatLeaderId}");
-
-                    return beatLeaderId;
-                }
-
-                try
-                {
-                    _waitingForBeatLeaderId = true;
-
-                    logger.Log("Sending !bsprofile command to retrieve BeatLeaderId");
-
-                    cph.SendMessage("!bsprofile");
-
-                    if (TryWaitForBeatLeaderId(out beatLeaderId))
-                    {
-                        logger.Log($"Successfully retrieved BeatLeaderId: {beatLeaderId}");
-
-                        return beatLeaderId;
-                    }
-
-                    logger.LogWarn("Failed to retrieve BeatLeaderId within 15 seconds");
-                }
-                catch (Exception ex)
-                {
-                    logger.HandleException(ex);
-                }
-                finally
-                {
-                    _waitingForBeatLeaderId = false;
-                }
-
-                return null;
-            }
-        }
+        get => GetBeatLeaderId();
         set => cph.SetGlobalVar(GetGlobalVarName(), value);
     }
 
@@ -191,6 +134,66 @@ public class BeatSaberService(IInlineInvokeProxy cph, StreamerBotLogger logger) 
             result: out beatLeaderId,
             timeoutMs: timeoutMs ?? 15000
         );
+
+    private string GetBeatLeaderId()
+    {
+        if (TryGetBeatLeaderIdGlobal(out var beatLeaderId))
+        {
+            Logger.Log($"Retrieved BeatLeaderId: {beatLeaderId}");
+
+            return beatLeaderId;
+        }
+
+        if (_waitingForBeatLeaderId)
+        {
+            Logger.LogWarn(
+                "Another thread is waiting for the BeatLeaderId. Waiting for it to complete..."
+            );
+
+            return TryWaitForBeatLeaderId(out beatLeaderId, () => !_waitingForBeatLeaderId)
+                ? beatLeaderId
+                : null;
+        }
+
+        lock (_beatLeaderIdLock)
+        {
+            // Check again inside lock to avoid race conditions
+            if (TryGetBeatLeaderIdGlobal(out beatLeaderId))
+            {
+                Logger.Log($"Retrieved BeatLeaderId inside lock: {beatLeaderId}");
+
+                return beatLeaderId;
+            }
+
+            try
+            {
+                _waitingForBeatLeaderId = true;
+
+                Logger.Log("Sending !bsprofile command to retrieve BeatLeaderId");
+
+                cph.SendMessage("!bsprofile");
+
+                if (TryWaitForBeatLeaderId(out beatLeaderId))
+                {
+                    Logger.Log($"Successfully retrieved BeatLeaderId: {beatLeaderId}");
+
+                    return beatLeaderId;
+                }
+
+                Logger.LogWarn("Failed to retrieve BeatLeaderId within 15 seconds");
+            }
+            catch (Exception ex)
+            {
+                Logger.HandleException(ex);
+            }
+            finally
+            {
+                _waitingForBeatLeaderId = false;
+            }
+
+            return null;
+        }
+    }
 
     private bool TryGetBeatLeaderIdGlobal(out string beatLeaderId)
     {

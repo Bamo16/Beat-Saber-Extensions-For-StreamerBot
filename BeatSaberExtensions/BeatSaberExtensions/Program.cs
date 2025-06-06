@@ -8,25 +8,23 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 {
     private const string ActionName = "Beat Saber Extensions";
 
-    private StreamerBotLogger _logger;
     private StreamerBotEventHandler _sbEventHandler;
 
     public void Init()
     {
         try
         {
-            _logger = new StreamerBotLogger(CPH, ActionName);
-            UserConfig.Init(_logger);
-            _sbEventHandler = new StreamerBotEventHandler(CPH, _logger);
+            Logger.Init(CPH, ActionName);
+            _sbEventHandler = new StreamerBotEventHandler(CPH);
 
-            _logger.Log("Completed successfully.");
+            Logger.Log("Completed successfully.");
         }
         catch (Exception ex)
         {
-            if (_logger is not null)
-                _logger.HandleException(ex, setArgument: false);
+            if (Logger.IsInitialized)
+                Logger.HandleException(ex, setArgument: false);
             else
-                CPH.HandleNullLoggerOnInit(ex, nameof(_logger), ActionName);
+                CPH.HandleNullLoggerOnInit(ex, nameof(Logger), ActionName);
         }
     }
 
@@ -34,7 +32,7 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
     public bool Execute()
     {
-        _logger.LogActionStart(args, out var executeSuccess, out var sbArgs, out var eventType);
+        Logger.LogActionStart(args, out var executeSuccess, out var sbArgs, out var eventType);
 
         try
         {
@@ -49,11 +47,11 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         }
         catch (Exception ex)
         {
-            _logger.HandleException(ex);
+            Logger.HandleException(ex);
         }
         finally
         {
-            _logger.LogActionCompletion(executeSuccess);
+            Logger.LogActionCompletion(executeSuccess);
         }
 
         return executeSuccess;
