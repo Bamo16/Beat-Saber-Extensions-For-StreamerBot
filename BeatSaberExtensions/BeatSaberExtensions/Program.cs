@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
+using BeatSaberExtensions.Extensions.DictionaryExtensions;
 using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Utility;
 using BeatSaberExtensions.Utility.Logging;
+using Streamer.bot.Common.Events;
 using Streamer.bot.Plugin.Interface;
 
 public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting code into streamer.bot
@@ -34,14 +37,22 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     {
         Logger.LogActionStart(args, out var executeSuccess, out var sbArgs, out var eventType);
 
+        // Exit immediately when !bsr Raider Request is triggered by the broadcaster account.
+        if (executeSuccess is true)
+        {
+            return true;
+        }
+
         try
         {
             UserConfig.SetConfigValues(sbArgs);
 
-            var message = _sbEventHandler.HandleStreamerBotEvent(eventType, sbArgs);
+            var message = HandleStreamerBotEvent(eventType, sbArgs);
 
             if (!string.IsNullOrEmpty(message))
+            {
                 CPH.SendMessage(message);
+            }
 
             executeSuccess = true;
         }
@@ -55,5 +66,31 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         }
 
         return executeSuccess;
+    }
+
+    public string HandleStreamerBotEvent(EventType eventType, Dictionary<string, object> sbArgs)
+    {
+        if (eventType is EventType.TwitchRaid)
+        {
+            return _sbEventHandler.HandleTwitchRaid(sbArgs);
+        }
+
+        if (eventType is EventType.CommandTriggered)
+        {
+            var commandId = sbArgs.GetArgOrDefault("commandId", string.Empty);
+
+            if (_sbEventHandler.Actions.TryGetValue(commandId, out var action))
+            {
+                return action.Invoke(sbArgs);
+            }
+
+            var command = sbArgs.GetArgOrDefault<string>("command");
+
+            throw new InvalidOperationException(
+                $"Unsupported commandId: \"{commandId}\" (\"{command}\")."
+            );
+        }
+
+        throw new InvalidOperationException($"Unsupported EventType: {eventType}.");
     }
 }
