@@ -12,7 +12,6 @@ using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Extensions.TimeSpanExtensions;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Common.Events;
 using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Model;
 
@@ -24,7 +23,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
     private Dictionary<string, Func<Dictionary<string, object>, string>> _actions;
 
-    private Dictionary<string, Func<Dictionary<string, object>, string>> Actions =>
+    public Dictionary<string, Func<Dictionary<string, object>, string>> Actions =>
         _actions ??= new Dictionary<string, Func<Dictionary<string, object>, string>>()
         {
             [UserConfig.QueueCommandId] = HandleQueueCommand,
@@ -41,40 +40,14 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
     public void Dispose() => _beatSaberService?.Dispose();
 
-    public string HandleStreamerBotEvent(EventType eventType, Dictionary<string, object> sbArgs)
-    {
-        if (eventType is EventType.TwitchRaid)
-        {
-            return HandleTwitchRaid(sbArgs);
-        }
-
-        if (eventType is EventType.CommandTriggered)
-        {
-            var commandId = sbArgs.GetArgOrDefault("commandId", string.Empty);
-
-            if (Actions.TryGetValue(commandId, out var action))
-            {
-                return action.Invoke(sbArgs);
-            }
-
-            var command = sbArgs.GetArgOrDefault<string>("command");
-
-            throw new InvalidOperationException(
-                $"Unsupported commandId: \"{commandId}\" (\"{command}\")."
-            );
-        }
-
-        throw new InvalidOperationException($"Unsupported EventType: {eventType}.");
-    }
-
-    private string HandleTwitchRaid(Dictionary<string, object> sbArgs)
+    public string HandleTwitchRaid(Dictionary<string, object> sbArgs)
     {
         var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs);
 
-        if (!UserConfig.BumpNextRequestFromRaider)
+        if (UserConfig.BumpNextRequestFromRaider is false and var bumpConfig)
         {
             Logger.Log(
-                $"Ignoring raid from {user.GetFormattedDisplayName()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {UserConfig.BumpNextRequestFromRaider}."
+                $"Ignoring raid request from {user.GetFormattedDisplayName()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {bumpConfig}."
             );
 
             return null;
@@ -317,11 +290,20 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     }
 
     private string HandleVersionCommand() =>
-        $"Beat Saber Extensions For StreamerBot Version: {UserConfig.Version}";
+        $"Beat Saber Extensions For StreamerBot Version: {UserConfig.Version} {UserConfig.GithubUrl}";
 
     private string HandleRaidRequest(Dictionary<string, object> sbArgs)
     {
         var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs);
+
+        if (UserConfig.BumpNextRequestFromRaider is false and var bumpConfig)
+        {
+            Logger.Log(
+                $"Ignoring raid request from {user.GetFormattedDisplayName()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {bumpConfig}."
+            );
+
+            return null;
+        }
 
         if (!sbArgs.TryGetArg("BsrId", out string bsrId))
         {
@@ -451,7 +433,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         {
             Logger.Log($"Successfully processed {bumpInfo}.");
 
-            message = GetBumpSongMessage(request, UserConfig.RaidRequestBumpMessage);
+            message = GetBumpSongMessage(request, UserConfig.RaidRequestBumpMessage, approver);
             return true;
         }
         else
@@ -472,14 +454,11 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         BaseUserInfo approver = null
     ) =>
         string.Format(
-            "!songmsg {0}",
-            string.Format(
-                UserConfig.SongMessageFormat,
-                detail,
-                request.Id,
-                request.User.GetFormattedDisplayName(),
-                (approver ?? cph.TwitchGetBroadcaster()).GetFormattedDisplayName()
-            )
+            UserConfig.SongMessageFormat,
+            request.Id,
+            detail,
+            request.User.GetFormattedDisplayName(),
+            (approver ?? cph.TwitchGetBroadcaster()).GetFormattedDisplayName()
         );
 
     private QueueItem GetQueueItem(

@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using BeatSaberExtensions.Enums;
+using BeatSaberExtensions.Extensions.DictionaryExtensions;
 using BeatSaberExtensions.Extensions.ExceptionExtensions;
+using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using Newtonsoft.Json;
 using Streamer.bot.Common.Events;
@@ -86,24 +88,48 @@ public static class Logger
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        executeSuccess = false;
         sbArgs = new Dictionary<string, object>(args);
         eventType = _cph.GetEventType();
+        var userLogin = sbArgs.GetArgOrDefault("userName", string.Empty);
+        var commandId = sbArgs.GetArgOrDefault("commandId", string.Empty);
 
-        Log("Action Started.", methodName: methodName, lineNumber: lineNumber);
+        // Any instance of !bsr Raider Request triggered by the broadcaster account can be safely ignored.
+        // Setting executeSuccess to true results in the action stopping immediately.
+        if (_cph.IsBroadcasterLogin(userLogin) && commandId is UserConfig.RaidRequestCommandId)
+        {
+            executeSuccess = true;
+            SetExecuteSuccessArgument(executeSuccess);
+
+            return;
+        }
+
+        executeSuccess = false;
+
+        LogObject(
+            new
+            {
+                EventType = eventType.ToString(),
+                CommandId = commandId,
+                Command = sbArgs.GetArgOrDefault("command", string.Empty),
+                RawInput = sbArgs.GetArgOrDefault("rawInput", string.Empty),
+                UserLogin = userLogin,
+            },
+            "Action started with",
+            methodName: methodName,
+            lineNumber: lineNumber
+        );
     }
 
     public static void LogActionCompletion(
         bool executeSuccess,
-        string successArgName = "ExecuteSuccess",
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        _cph.SetArgument(successArgName, executeSuccess);
+        SetExecuteSuccessArgument(executeSuccess);
 
         Log(
-            $"Action completed with {successArgName}: {executeSuccess}.",
+            $"Action completed with ExecuteSuccess: {executeSuccess}.",
             executeSuccess ? LogAction.Info : LogAction.Warn,
             methodName: methodName,
             lineNumber: lineNumber
@@ -180,4 +206,7 @@ public static class Logger
             truncateAfterChars
                 ?? (logAction is LogAction.Error ? _truncateAfterCharsError : _truncateAfterChars)
         );
+
+    private static void SetExecuteSuccessArgument(bool executeSuccess) =>
+        _cph.SetArgument("ExecuteSuccess", executeSuccess);
 }
