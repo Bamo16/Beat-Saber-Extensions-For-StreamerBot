@@ -27,9 +27,16 @@
 
 ## 📜 Changelog
 
-### [0.1.0] - 2025-06-01
+### [0.1.1] - 2025-06-06
 
-#### ➕ Added
+* Fixed missing triggers related to raid requests
+* Added configurable `DefaultQueueItemCount`
+* Refactored Logger
+
+> [!Note]
+> I have identified an issue where the BeatLeader API will sometimes return `401 Unauthorized` causing `!bsrlookup` to fail and I'm currently working on a fix
+
+### [0.1.0] - 2025-06-01
 
 * Added user-configurable values via StreamerBot arguments
 * `!bsrlookup`: Now properly locates the most recent score rather than just the user's top/pinned score for a beatmap
@@ -57,28 +64,54 @@
 
 ## 🧵 Commands
 
-> 💡 **Note on usernames:**  
-Typically, when autocompleting the username for a chatter with a localized display name (Japanese/Chinese/Russian/etc.), most chat clients will autocomplete the user's display name. StreamerBot cannot identify users by display name alone, but **Beat Saber Extensions** automatically identifies users with special display names and keeps track of them using StreamerBot user groups so that localized display names can be used as input for commands.
+> [!Note]
+> Typically, when autocompleting the username for a chatter with a localized display name (Japanese/Chinese/Russian/etc.), most chat clients will autocomplete the user's display name. StreamerBot cannot identify users by display name alone, but **Beat Saber Extensions** automatically identifies users with special display names and keeps track of them using StreamerBot user groups so that localized display names can be used as input for commands.
 
-For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`), you can provide the username in any of the following forms:
-
-* `userlogin`
-* `DisplayName`
-* `@userlogin`
-* `@DisplayName`
+For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`), you can provide either a username or a display name. Names may be provided with or without the `@` prefix.
 
 ### 🎮 General Chat Commands
 
-* `!bsrmyqueue`
-* `!bsrwhen`
-* `!bsrlookup`
+#### `!bsrmyqueue [user]` (Alias: `!bsrmq`)
+
+![bsrmyqueue example 1](images/bsrmyqueue1.png)
+
+![bsrmyqueue example 2](images/bsrmyqueue2.png)
+
+#### `!bsrwhen [user]`
+
+![bsrwhen example 1](images/bsrwhen1.png)
+
+![bsrwhen example 2](images/bsrwhen2.png)
+
+### `!bsrlookup <bsrid>`
+
+![bsrwhen example 2](images/bsrlookup1.png)
 
 ### 🛡️ Moderator-Only Commands
 
-* `!bsrbump`
-* `!bsrqueue`
-* `!bsrenable`
-* `!bsrdisable`
+### `!bsrbump <bsrid|user>`
+
+![bsrbump example 1](images/bsrbump1.png)
+
+![bsrbump example 2](images/bsrbump2.png)
+
+### `!bsrqueue [count]`
+
+![bsrqueue example 1](images/bsrqueue1.png)
+
+![bsrqueue example 2](images/bsrqueue2.png)
+
+### `!bsrdisable`
+
+![bsrdisable example 1](images/bsrdisable1.png)
+
+### `!bsrenable`
+
+![bsrenable example 1](images/bsrenable1.png)
+
+### `!bsrextversion`
+
+![bsrextversion example 1](images/bsrextversion1.png)
 
 ## 📦 User-Configurable Messages & Settings
 
@@ -106,7 +139,7 @@ Argument Name                | Description                                      
 `InvalidInputBumpFormat`     | Displayed when the `!basrbump` command is used with an argument that does not match any user or BSR ID. | `The provided value (\"{0}\") does not match any queued BSR Id, username, or displayname.🚫`
 `NoUserRequestsBumpFormat`   | Displayed when the `!basrbump` command is used to bump someone with no requests. | `There currently aren't any requests in the queue for {0}`
 `SongBumpFailureFormat`      | Displayed when the `!bsrbump` command is not able to confirm success.            | `Couldn't verify song bump success. Please confirm that {0} was bumped to the top.⚠️`
-`SongMessageFormat`          | Template used to format the song message used with a song bump.                  | `{0} for {1} approved by {2}`
+`SongMessageFormat`          | Template used to format the song message used with a song bump.                  | `!songmsg {0} {1} for {2} approved by {3}`
 `LookupInvalidBsrIdFormat`   | Used when an invalid BSR ID is provided to `!bsrlookup`.                         | `Invalid beatmap id: \"{0}\".`
 `LookupBeatmapNoFoundFormat` | Displayed when there is no beatmap associated with a BSRID            | `Failed to find beatmap for id: "{0}".`
 `UserHasNoRequestsFormat`    | Used when `!bsrwhen`, `!bsrmyqueue`, or `!bsrbump` is used for a user with no requests in the queue. | `{0} {1} not currently have any requests in the queue.`
@@ -130,6 +163,7 @@ Argument Name                     | Description                                 
 Argument Name                 | Description                                                           | Default Value
 ----------------------------- | --------------------------------------------------------------------- | -------------
 `UsernameDisplayMode`         | Specifies how usernames are shown. `UserLoginOnly`: "mecha_bamo", `DisplayNameOnlu`: "爪モ匚卄丹_乃丹爪口", or `Dynamic` "mecha_bamo (爪モ匚卄丹_乃丹爪口)". | `UserLoginOnly`
+`DefaultQueueItemCount`       | Default number of items that can be shown by the `!bsrqueue` command. | `5`
 `MaximumQueueItemCount`       | Maximum number of items that can be shown by the `!bsrqueue` command. | `10`
 `BeatmapCacheDurationMinutes` | Duration (minutes) to cache beatmap data.                             | `30`
 `SecondsBetweenSongs`         | When calculating the estimated wait time for `!bsrwhen`, this is the amount of time added to each song to accommodate for time spent in menus or talking to chat. | `90`
