@@ -19,6 +19,8 @@ public static class InlineInvokeProxyExtensions
         StringComparer.OrdinalIgnoreCase
     );
 
+    private static BaseUserInfo _broadcaster;
+
     public static T GetUserInfoFromArgs<T>(
         this IInlineInvokeProxy cph,
         Dictionary<string, object> sbArgs,
@@ -82,6 +84,14 @@ public static class InlineInvokeProxyExtensions
             persisted
         );
 
+    public static void SetCommandState(this IInlineInvokeProxy cph, string commandId, bool state)
+    {
+        if (state)
+            cph.EnableCommand(commandId);
+        else
+            cph.DisableCommand(commandId);
+    }
+
     public static bool StreamIsLive(this IInlineInvokeProxy cph) =>
         cph.ObsIsConnected() && cph.ObsIsStreaming();
 
@@ -110,6 +120,9 @@ public static class InlineInvokeProxyExtensions
 
         return false;
     }
+
+    public static bool IsBroadcasterLogin(this IInlineInvokeProxy cph, string userLogin) =>
+        cph.GetBroadcaster().UserLogin == userLogin;
 
     public static bool EnsureGroupMembershipForUser(
         this IInlineInvokeProxy cph,
@@ -178,4 +191,7 @@ public static class InlineInvokeProxyExtensions
         typeof(T) == typeof(TwitchUserInfoEx)
             ? cph.TwitchGetExtendedUserInfoByLogin(userLogin) as T
             : cph.TwitchGetUserInfoByLogin(userLogin) as T;
+
+    private static BaseUserInfo GetBroadcaster(this IInlineInvokeProxy cph) =>
+        _broadcaster ??= cph.TwitchGetBroadcaster();
 }

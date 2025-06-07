@@ -11,7 +11,7 @@ using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Enums;
 using Streamer.bot.Plugin.Interface.Model;
 
-public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting code into streamer.bot
+public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting code into Streamer.Bot
 {
     private const string ActionName = "Group Manager";
     private const string RefreshLastLiveTimestampTimerId = "fe0b585f-4d61-458d-897b-5d6e876cc574";
@@ -20,10 +20,8 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     private const string StreamerBotUsersGroup = "StreamerBot Users";
     private const string RaidRequestorGroupName = "Raid Requestors";
 
-    private static readonly object _clearGroupsLock = new();
+    private static readonly object _clearGroupsLock = new object();
     private static readonly TimeSpan _timeBetweenStreamsThreshold = TimeSpan.FromMinutes(30);
-
-    private StreamerBotLogger _logger;
 
     private DateTime LastLiveTimestamp
     {
@@ -42,23 +40,23 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     {
         try
         {
-            _logger = new StreamerBotLogger(CPH, ActionName);
+            Logger.Init(CPH, ActionName);
             InitializeGroups();
 
-            _logger.Log("Completed successfully.");
+            Logger.Log("Completed successfully.");
         }
         catch (Exception ex)
         {
-            if (_logger is not null)
-                _logger.HandleException(ex, setArgument: false);
+            if (Logger.IsInitialized)
+                Logger.HandleException(ex, setArgument: false);
             else
-                CPH.HandleNullLoggerOnInit(ex, nameof(_logger), ActionName);
+                CPH.HandleNullLoggerOnInit(ex, nameof(Logger), ActionName);
         }
     }
 
     public bool Execute()
     {
-        _logger.LogActionStart(args, out var executeSuccess, out var sbArgs, out var eventType);
+        Logger.LogActionStart(args, out var executeSuccess, out var sbArgs, out var eventType);
 
         try
         {
@@ -81,11 +79,11 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         }
         catch (Exception ex)
         {
-            _logger.HandleException(ex);
+            Logger.HandleException(ex);
         }
         finally
         {
-            _logger.LogActionCompletion(executeSuccess);
+            Logger.LogActionCompletion(executeSuccess);
         }
 
         return executeSuccess;
@@ -93,7 +91,7 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
     private void SetLastLiveTimestamp()
     {
-        if (!CPH.ObsIsConnected() || !CPH.ObsIsStreaming())
+        if (!CPH.StreamIsLive())
         {
             return;
         }
@@ -105,7 +103,7 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
                 var message =
                     $"{nameof(LastLiveTimestamp)} was longer than {_timeBetweenStreamsThreshold.ToFriendlyString()} ago. Clearing users from the following groups: [{string.Join(", ", GroupsToClearOnNewStream)}].";
 
-                _logger.LogWarn(message);
+                Logger.LogWarn(message);
 
                 foreach (var group in GroupsToClearOnNewStream)
                 {
@@ -121,7 +119,7 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
             var now = DateTime.UtcNow;
 
-            _logger.Log($"Setting {nameof(LastLiveTimestamp)} to {now} in 60 seconds.");
+            Logger.Log($"Setting {nameof(LastLiveTimestamp)} to {now} in 60 seconds.");
 
             LastLiveTimestamp = now;
         }
@@ -131,14 +129,14 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     {
         if (!sbArgs.TryGetArg("userId", out string userId))
         {
-            _logger.LogError($"Failed to get {nameof(userId)} from arguments.");
+            Logger.LogError($"Failed to get {nameof(userId)} from arguments.");
 
             return false;
         }
 
         if (CPH.TwitchGetUserInfoById(userId) is not { } user)
         {
-            _logger.LogError($"Failed to get user info for userId: {userId}.");
+            Logger.LogError($"Failed to get user info for userId: {userId}.");
 
             return false;
         }
@@ -154,7 +152,7 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
             return true;
         }
 
-        _logger.LogError($"Failed to add user to groups: {user.GetFormattedDisplayName()}.");
+        Logger.LogError($"Failed to add user to groups: {user.GetFormattedDisplayName()}.");
         return false;
     }
 
@@ -187,52 +185,74 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     }
 }
 
-public class StreamerBotLogger(
-    IInlineInvokeProxy cph,
-    string logMessageTag,
-    LogAction defaultLogAction = LogAction.Info,
-    int afterChars = 1000,
-    int truncateAfterCharsError = 3000
-)
+public static class Logger
 {
-    private static readonly object _lock = new();
+    private static IInlineInvokeProxy _cph;
+    private static string _logMessageTag;
+    private static LogAction _defaultLogAction;
+    private static int _truncateAfterChars;
+    private static int _truncateAfterCharsError;
 
-    public void LogDebug(
+    public static bool IsInitialized => _cph is not null;
+
+    public static void Init(
+        IInlineInvokeProxy cph,
+        string logMessageTag,
+        LogAction defaultLogAction = LogAction.Info,
+        int truncateAfterChars = 1000,
+        int truncateAfterCharsError = 3000
+    )
+    {
+        _cph = cph;
+        _logMessageTag = logMessageTag;
+        _defaultLogAction = defaultLogAction;
+        _truncateAfterChars = truncateAfterChars;
+        _truncateAfterCharsError = truncateAfterCharsError;
+    }
+
+    public static void LogDebug(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) => Log(logLine, LogAction.Debug, truncateAfterChars, methodName, lineNumber);
+    ) =>
+        Log(
+            logLine: logLine,
+            logAction: LogAction.Debug,
+            truncateAfterChars: truncateAfterChars,
+            methodName: methodName,
+            lineNumber
+        );
 
-    public void LogVerbose(
+    public static void LogVerbose(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Verbose, truncateAfterChars, methodName, lineNumber);
 
-    public void LogInfo(
+    public static void LogInfo(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Info, truncateAfterChars, methodName, lineNumber);
 
-    public void LogWarn(
+    public static void LogWarn(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Warn, truncateAfterChars, methodName, lineNumber);
 
-    public void LogError(
+    public static void LogError(
         string logLine,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Error, truncateAfterChars, methodName, lineNumber);
 
-    public void LogActionStart(
+    public static void LogActionStart(
         Dictionary<string, object> args,
         out bool executeSuccess,
         out Dictionary<string, object> sbArgs,
@@ -241,24 +261,21 @@ public class StreamerBotLogger(
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        lock (_lock)
-        {
-            executeSuccess = false;
-            sbArgs = new Dictionary<string, object>(args);
-            eventType = cph.GetEventType();
-        }
+        executeSuccess = false;
+        sbArgs = new Dictionary<string, object>(args);
+        eventType = _cph.GetEventType();
 
         Log("Action Started.", methodName: methodName, lineNumber: lineNumber);
     }
 
-    public void LogActionCompletion(
+    public static void LogActionCompletion(
         bool executeSuccess,
         string successArgName = "ExecuteSuccess",
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        cph.SetArgument(successArgName, executeSuccess);
+        _cph.SetArgument(successArgName, executeSuccess);
 
         Log(
             $"Action completed with {successArgName}: {executeSuccess}.",
@@ -268,7 +285,7 @@ public class StreamerBotLogger(
         );
     }
 
-    public void HandleException(
+    public static void HandleException(
         Exception ex,
         bool setArgument = true,
         int? truncateAfterChars = null,
@@ -281,52 +298,43 @@ public class StreamerBotLogger(
 
         if (setArgument)
         {
-            var argumentValue = cph.TryGetArg<string>(argName, out var currentValue)
+            var argumentValue = _cph.TryGetArg<string>(argName, out var currentValue)
                 ? string.Join("; ", currentValue, message)
                 : message;
 
-            cph.SetArgument(argName, argumentValue);
+            _cph.SetArgument(argName, argumentValue);
         }
 
         LogError(message, truncateAfterChars, methodName, lineNumber);
     }
 
-    public void Log(
+    public static void Log(
         string logLine,
         LogAction? logAction = null,
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    )
-    {
-        Action<string> action = (logAction ?? defaultLogAction) switch
-        {
-            _ when cph is null => _ => { },
-            LogAction.Debug => cph.LogDebug,
-            LogAction.Verbose => cph.LogVerbose,
-            LogAction.Info => cph.LogInfo,
-            LogAction.Warn => cph.LogWarn,
-            LogAction.Error => cph.LogError,
-            _ => _ => { },
-        };
+    ) => (
+            (logAction ?? _defaultLogAction) switch
+            {
+                _ when _cph is null => _ => { },
+                LogAction.Debug => _cph.LogDebug,
+                LogAction.Verbose => _cph.LogVerbose,
+                LogAction.Info => _cph.LogInfo,
+                LogAction.Warn => _cph.LogWarn,
+                LogAction.Error => _cph.LogError,
+                _ => new Action<string>(_ => { }),
+            }
+        )(Truncate($"[{_logMessageTag}] [{methodName} L{lineNumber}] {logLine}", logAction, truncateAfterChars));
 
-        action.Invoke(
-            Truncate(
-                $"[{logMessageTag}] [{methodName} L{lineNumber}] {logLine}",
-                logAction,
-                truncateAfterChars
-            )
-        );
-    }
-
-    private string Truncate(
+    private static string Truncate(
         string logLine,
         LogAction? logAction = null,
         int? truncateAfterChars = null
     ) =>
         logLine.Truncate(
             truncateAfterChars
-                ?? (logAction is LogAction.Error ? truncateAfterCharsError : afterChars)
+                ?? (logAction is LogAction.Error ? _truncateAfterCharsError : _truncateAfterChars)
         );
 }
 
@@ -353,6 +361,9 @@ public static class InlineInvokeProxyExtensions
             (value ?? DateTime.UtcNow).ToLocalTime().ToString("yyyy-MM-dd hh:mm:ss.fff tt zzz"),
             persisted
         );
+
+    public static bool StreamIsLive(this IInlineInvokeProxy cph) =>
+        cph.ObsIsConnected() && cph.ObsIsStreaming();
 
     public static IEnumerable<BaseUserInfo> GetStreamerBotAccounts(this IInlineInvokeProxy cph) =>
         (Broadcaster: cph.TwitchGetBroadcaster(), Bot: cph.TwitchGetBot()) switch

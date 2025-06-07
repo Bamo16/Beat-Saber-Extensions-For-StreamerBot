@@ -11,14 +11,16 @@ namespace BeatSaberExtensions.Utility;
 
 public static class UserConfig
 {
-    private static readonly object _beatSaberServiceLock = new();
-    private static readonly ConcurrentDictionary<string, object> _beatSaberServiceValues = [];
+    public const string GithubUrl = "https://github.com/Bamo16/Beat-Saber-Extensions-For-StreamerBot";
 
-    private static StreamerBotLogger _logger;
-    private static bool _beatSaberServiceValuesInitialized;
-    private static Dictionary<string, object> _sbArgs;
-
+    private static readonly object _lock = new object();
+    private static readonly ConcurrentDictionary<string, object> _configValues = [];
     private static readonly List<(string Name, object Value)> _changes = [];
+
+    public static readonly Version Version = new Version(0, 1, 1);
+
+    private static bool _configValuesInitialized;
+    private static Dictionary<string, object> _sbArgs;
 
     #region Command Ids
 
@@ -103,9 +105,13 @@ public static class UserConfig
 
     public static UsernameDisplayMode UsernameDisplayMode =>
         GetConfigValue(UsernameDisplayMode.UserLoginOnly);
+    public static int DefaultQueueItemCount => GetConfigValue(5);
     public static int MaximumQueueItemCount => GetConfigValue(10);
     public static TimeSpan BeatmapCacheDuration =>
         TimeSpan.FromMinutes(GetConfigValue(30, "BeatmapCacheDurationMinutes"));
+    public static TimeSpan BeatmapRefreshAfterDuration =>
+        BeatmapCacheDuration
+        - TimeSpan.FromSeconds(Math.Min(30, 0.2 * BeatmapCacheDuration.TotalSeconds));
     public static TimeSpan TimeBetweenSongs =>
         TimeSpan.FromSeconds(GetConfigValue(90, "SecondsBetweenSongs"));
 
@@ -130,11 +136,9 @@ public static class UserConfig
 
     #endregion
 
-    public static void Init(StreamerBotLogger logger) => _logger = logger;
-
     public static void SetConfigValues(Dictionary<string, object> sbArgs)
     {
-        lock (_beatSaberServiceLock)
+        lock (_lock)
         {
             _sbArgs = new Dictionary<string, object>(sbArgs);
             _changes.Clear();
@@ -163,6 +167,7 @@ public static class UserConfig
             SetConfigValue<string>(nameof(WhenMessageFormat));
 
             SetConfigValue<UsernameDisplayMode>(nameof(UsernameDisplayMode));
+            SetConfigValue<int>(nameof(DefaultQueueItemCount));
             SetConfigValue<int>(nameof(MaximumQueueItemCount));
             SetConfigValue<int>("BeatmapCacheDurationMinutes");
             SetConfigValue<int>("SecondsBetweenSongs");
@@ -182,29 +187,31 @@ public static class UserConfig
                 var logObject = _changes.ToDictionary(item => item.Name, item => item.Value);
                 var logMessageLabel = string.Format(
                     "{0} Configuration Values",
-                    !_beatSaberServiceValuesInitialized ? "Initialized" : "Updated"
+                    !_configValuesInitialized ? "Initialized" : "Updated"
                 );
 
-                _logger.LogObject(logObject, logMessageLabel, truncateAfterChars: int.MaxValue);
+                Logger.LogObject(logObject, logMessageLabel, truncateAfterChars: int.MaxValue);
             }
 
-            if (_beatSaberServiceValuesInitialized is false)
-                _beatSaberServiceValuesInitialized = true;
+            if (_configValuesInitialized is false)
+            {
+                _configValuesInitialized = true;
+            }
         }
     }
 
     private static T GetConfigValue<T>(
         T defaultValue = default,
         [CallerMemberName] string memberName = null
-    ) => _beatSaberServiceValues.TryGetArg(memberName, out T value) ? value : defaultValue;
+    ) => _configValues.TryGetArg(memberName, out T value) ? value : defaultValue;
 
     private static void SetConfigValue<T>(string memberName)
     {
         var argExists = _sbArgs.TryGetArg(memberName, out T newValue);
 
-        if (!_beatSaberServiceValuesInitialized && !argExists)
+        if (!_configValuesInitialized && !argExists)
         {
-            _logger.LogWarn(
+            Logger.LogWarn(
                 $"Missing StreamerBot argument: \"{memberName}\". Default value will be used."
             );
 
@@ -214,13 +221,13 @@ public static class UserConfig
         if (
             argExists
             && (
-                !_beatSaberServiceValuesInitialized
-                || !_beatSaberServiceValues.TryGetArg(memberName, out T currentValue)
+                !_configValuesInitialized
+                || !_configValues.TryGetArg(memberName, out T currentValue)
                 || !currentValue.Equals(newValue)
             )
         )
         {
-            _beatSaberServiceValues[memberName] = newValue;
+            _configValues[memberName] = newValue;
             _changes.Add((memberName, newValue));
         }
     }

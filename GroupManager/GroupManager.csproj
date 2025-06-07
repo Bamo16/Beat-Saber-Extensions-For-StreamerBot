@@ -12,15 +12,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- System Assemblies -->
-    <Reference Include="System.Net.Http" Version="4.0.0" />
-    <Reference Include="System.Web" />
-    <Reference Include="System.Security" />
-
-    <!-- Additional Assenblies -->
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(DotnetAssembliesPath)\Newtonsoft.Json.dll</HintPath>
-    </Reference>
     <Reference Include="Streamer.bot.Plugin.Interface">
       <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.dll</HintPath>
     </Reference>

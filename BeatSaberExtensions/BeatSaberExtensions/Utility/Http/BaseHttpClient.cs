@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Specialized;
-using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Web;
@@ -13,23 +12,24 @@ namespace BeatSaberExtensions.Utility.Http;
 
 public abstract class BaseHttpClient(
     Uri baseUri,
-    StreamerBotLogger logger = null,
     bool logWhenSuccessful = false,
     TimeSpan? timeout = null,
     JsonSerializerSettings settings = null
 ) : IDisposable
 {
-    private readonly HttpClient _client = new HttpClient()
-    {
-        Timeout = timeout ?? TimeSpan.FromSeconds(15),
-    };
-    private readonly JsonSerializerSettings _jsonSerializerSettings =
-        settings
-        ?? new JsonSerializerSettings()
+    private static readonly JsonSerializerSettings _defaultJsonSerializerSettings =
+        new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
             ContractResolver = new CamelCasePropertyNamesContractResolver(),
         };
+
+    private readonly HttpClient _client = new HttpClient
+    {
+        Timeout = timeout ?? TimeSpan.FromSeconds(15),
+    };
+    private readonly JsonSerializerSettings _jsonSerializerSettings =
+        settings ?? _defaultJsonSerializerSettings;
 
     public void Dispose() => _client?.Dispose();
 
@@ -65,7 +65,7 @@ public abstract class BaseHttpClient(
         }
         catch (Exception ex)
         {
-            logger?.LogObject(
+            Logger.LogObject(
                 new
                 {
                     RequestUri = requestMessage.RequestUri.AbsoluteUri,
@@ -81,7 +81,7 @@ public abstract class BaseHttpClient(
 
         if (responseMessage is { IsSuccessStatusCode: false, StatusCode: var statusCode })
         {
-            logger?.LogObject(
+            Logger.LogObject(
                 new
                 {
                     RequestUri = requestMessage.RequestUri.AbsoluteUri,
@@ -97,7 +97,7 @@ public abstract class BaseHttpClient(
 
         if (!TryDeserialize(responseContent, out T result))
         {
-            logger?.LogObject(
+            Logger.LogObject(
                 new
                 {
                     RequestUri = requestMessage.RequestUri.AbsoluteUri,
@@ -112,7 +112,7 @@ public abstract class BaseHttpClient(
 
         if (logWhenSuccessful)
         {
-            logger?.LogObject(
+            Logger.LogObject(
                 new
                 {
                     RequestUri = requestMessage.RequestUri.AbsoluteUri,
@@ -134,13 +134,15 @@ public abstract class BaseHttpClient(
                 typeof(T) == typeof(string)
                     ? (T)(object)value
                     : JsonConvert.DeserializeObject<T>(value, _jsonSerializerSettings);
+
+            return true;
         }
         catch
         {
             result = default;
-        }
 
-        return result is not null;
+            return false;
+        }
     }
 
     private static HttpRequestMessage BuildHttpRequest(
@@ -148,32 +150,27 @@ public abstract class BaseHttpClient(
         HttpMethod method = null,
         string relativePath = "/",
         NameValueCollection queryParams = null
-    )
-    {
-        var requestUri = new UriBuilder
-        {
-            Scheme = baseUri.Scheme,
-            Host = baseUri.Host,
-            Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/{relativePath.Trim('/')}",
-            Query = BuildQueryString(baseUri, queryParams),
-        }.Uri;
-        var requestMessage = new HttpRequestMessage()
+    ) =>
+        new HttpRequestMessage
         {
             Method = method ?? HttpMethod.Get,
-            RequestUri = requestUri,
+            RequestUri = new UriBuilder
+            {
+                Scheme = baseUri.Scheme,
+                Host = baseUri.Host,
+                Port = baseUri.Port,
+                Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/{relativePath.Trim('/')}",
+                Query = BuildQueryString(baseUri, queryParams),
+            }.Uri,
         };
 
-        return requestMessage;
-    }
+    private static string BuildQueryString(Uri baseUri, NameValueCollection queryParams)
+    {
+        var query = HttpUtility.ParseQueryString(baseUri.Query);
 
-    private static string BuildQueryString(Uri baseUri, NameValueCollection queryParams) =>
-        (queryParams ?? []).AllKeys.Aggregate(
-            HttpUtility.ParseQueryString(baseUri.Query),
-            (query, key) =>
-            {
-                query[key] = queryParams[key];
-                return query;
-            },
-            query => query.ToString()
-        );
+        foreach (var key in queryParams?.AllKeys ?? [])
+            query[key] = queryParams[key];
+
+        return query.ToString();
+    }
 }

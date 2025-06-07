@@ -3,12 +3,11 @@ using System.Collections.Specialized;
 using System.Linq;
 using BeatSaberExtensions.Utility.Http.BeatLeader.Models;
 using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
-using BeatSaberExtensions.Utility.Logging;
 
 namespace BeatSaberExtensions.Utility.Http.BeatLeader;
 
-public class BeatLeaderClient(StreamerBotLogger logger, bool logWhenSuccessful = true)
-    : BaseHttpClient(new Uri(BeatLeaderBaseUri), logger, logWhenSuccessful)
+public class BeatLeaderClient(bool logWhenSuccessful = true)
+    : BaseHttpClient(new Uri(BeatLeaderBaseUri), logWhenSuccessful)
 {
     private const string BeatLeaderBaseUri = "https://api.beatleader.com/";
     private const int MaxPages = 10;

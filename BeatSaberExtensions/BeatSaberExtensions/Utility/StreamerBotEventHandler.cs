@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
+using BeatSaberExtensions.Extensions.ComparableExtensions;
 using BeatSaberExtensions.Extensions.DateTimeExtensions;
 using BeatSaberExtensions.Extensions.DictionaryExtensions;
 using BeatSaberExtensions.Extensions.EnumerableExtensions;
@@ -10,21 +12,19 @@ using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Extensions.TimeSpanExtensions;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Common.Events;
 using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility;
 
-public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger logger) : IDisposable
+public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 {
-    private static readonly Version _version = new Version(0, 1, 0);
+    private readonly BeatSaberService _beatSaberService = new BeatSaberService(cph);
 
-    private readonly BeatSaberService _beatSaberService = new(cph, logger);
+    private Dictionary<string, Func<Dictionary<string, object>, string>> _actions;
 
-    private Dictionary<string, Func<Dictionary<string, object>, string>> _commands;
-    private Dictionary<string, Func<Dictionary<string, object>, string>> Commands =>
-        _commands ??= new Dictionary<string, Func<Dictionary<string, object>, string>>()
+    public Dictionary<string, Func<Dictionary<string, object>, string>> Actions =>
+        _actions ??= new Dictionary<string, Func<Dictionary<string, object>, string>>()
         {
             [UserConfig.QueueCommandId] = HandleQueueCommand,
             [UserConfig.MyQueueCommandId] = HandleMyQueueCommand,
@@ -40,58 +40,68 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
     public void Dispose() => _beatSaberService?.Dispose();
 
-    public string HandleStreamerBotEvent(EventType eventType, Dictionary<string, object> sbArgs) =>
-        eventType switch
-        {
-            EventType.TwitchRaid => HandleTwitchRaid(sbArgs),
-
-            EventType.CommandTriggered
-                when sbArgs.TryGetArg<string>("commandId", out var commandId) =>
-                Commands.TryGetValue(commandId, out var command)
-                    ? command.Invoke(sbArgs)
-                    : throw new InvalidOperationException(
-                        $"Unsupported commandId: \"{commandId}\" (\"{sbArgs.GetArgOrDefault<string>("command")}\")."
-                    ),
-
-            _ => throw new InvalidOperationException($"Unsupported EventType: {eventType}."),
-        };
-
-    private string HandleTwitchRaid(Dictionary<string, object> sbArgs)
+    public string HandleTwitchRaid(Dictionary<string, object> sbArgs)
     {
-        if (!UserConfig.BumpNextRequestFromRaider)
+        var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs);
+
+        if (UserConfig.BumpNextRequestFromRaider is false and var bumpConfig)
         {
+            Logger.Log(
+                $"Ignoring raid request from {user.GetFormattedDisplayName()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {bumpConfig}."
+            );
+
             return null;
         }
 
-        var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs);
-
         if (_beatSaberService.DatabaseJson.BannedUsers.Contains(user.UserLogin))
         {
+            Logger.Log(
+                $"Ignoring raid from {user.GetFormattedDisplayName()} because user is in bannedusers."
+            );
+
             return null;
         }
 
         if (GetQueueItem(user: user, first: true) is { } request)
         {
-            return ProcessSongBump(request, out _, bumpMessage: UserConfig.RaidRequestBumpMessage);
+            Logger.Log($"Bumping existing request from raider {user.GetFormattedDisplayName()}.");
+
+            TryProcessSongBump(
+                request,
+                out var message,
+                bumpMessage: UserConfig.RaidRequestBumpMessage
+            );
+
+            return message;
         }
+
+        Logger.Log($"Adding raider {user.GetFormattedDisplayName()} to Raid Requestors group.");
 
         _beatSaberService.EnsureRaidRequestorsMembershipForUser(user, shouldBelongToGroup: true);
 
         return null;
     }
 
-    private string HandleQueueCommand(Dictionary<string, object> sbArgs) =>
-        _beatSaberService is not { Queue: { Count: > 0 } queue }
-            ? UserConfig.QueueEmptyMessage
-            : queue
-                .Select(item => item.ToFriendlyString(withPosition: true, withUserName: true))
-                .Take(GetQueueDisplayCountOrDefault(sbArgs))
-                .Prepend(
-                    _beatSaberService.GetQueueState()
-                        ? UserConfig.QueueStatusOpenMessage
-                        : UserConfig.QueueStatusClosedMessage
-                )
-                .FormatMultilineChatMessage();
+    private string HandleQueueCommand(Dictionary<string, object> sbArgs)
+    {
+        if (_beatSaberService is not { Queue: { Count: > 0 } queue })
+        {
+            return UserConfig.QueueEmptyMessage;
+        }
+
+        var max = sbArgs
+            .GetArgOrDefault("input0", UserConfig.DefaultQueueItemCount)
+            .Clamp(1, UserConfig.MaximumQueueItemCount);
+        var header = _beatSaberService.GetQueueState()
+            ? UserConfig.QueueStatusOpenMessage
+            : UserConfig.QueueStatusClosedMessage;
+
+        return queue
+            .Select(item => item.ToFriendlyString(withPosition: true, withUserName: true))
+            .Take(max)
+            .Prepend(header)
+            .FormatMultilineChatMessage();
+    }
 
     private string HandleMyQueueCommand(Dictionary<string, object> sbArgs)
     {
@@ -103,8 +113,8 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
         var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs, "input0", "userName");
         var isCaller = user.IsCaller(sbArgs);
         var userRequests = queue
-            .FindAll(item => item.BelongsToUser(user))
-            .ConvertAll(item => item.ToFriendlyString(withPosition: true, withUserName: false));
+            .Where(item => item.BelongsToUser(user))
+            .Select(item => item.ToFriendlyString(withPosition: true, withUserName: false));
 
         if (!userRequests.Any())
         {
@@ -204,13 +214,13 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
     private string HandleBumpCommand(Dictionary<string, object> sbArgs)
     {
-        logger.LogInfo("Processing !bsrbump command");
+        Logger.LogInfo("Processing !bsrbump command");
 
         var approver = cph.GetUserInfoFromArgs<TwitchUserInfo>(sbArgs);
 
         if (approver is { IsModerator: false })
         {
-            logger.LogWarn(
+            Logger.LogWarn(
                 $"Non-moderator ({approver.GetFormattedDisplayName()}) attempted !bsrbump"
             );
 
@@ -218,16 +228,27 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
         }
 
         if (_beatSaberService is not { Queue.Count: > 0 })
+        {
             return UserConfig.QueueEmptyMessage;
+        }
 
         if (!sbArgs.TryGetArg("input0", out string input0) || string.IsNullOrEmpty(input0))
+        {
             return UserConfig.BlankInputBumpMessage;
+        }
+
+        string message;
 
         if (GetQueueItem(id: input0) is { } queueItemById)
-            return ProcessSongBump(queueItemById, out _, approver: approver);
+        {
+            TryProcessSongBump(queueItemById, out message, approver: approver);
+            return message;
+        }
 
         if (cph.GetUserInfo<BaseUserInfo>(input0) is not { } user)
+        {
             return string.Format(UserConfig.InvalidInputBumpFormat, input0);
+        }
 
         if (GetQueueItem(user: user) is not { } queueItemByUser)
         {
@@ -238,19 +259,17 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
             );
         }
 
-        return ProcessSongBump(queueItemByUser, out _, approver: approver);
+        TryProcessSongBump(queueItemByUser, out message, approver: approver);
+        return message;
     }
 
     private string HandleStateCommand(bool state)
     {
-        logger.LogInfo($"Processing !bsrenable/!bsrdisable command with State: \"{state}\".");
+        Logger.LogInfo($"Processing !bsrenable/!bsrdisable command with State: \"{state}\".");
 
         foreach (var commandId in UserConfig.NonModCommandIds)
         {
-            if (state)
-                cph.EnableCommand(commandId);
-            else
-                cph.DisableCommand(commandId);
+            cph.SetCommandState(commandId, state);
         }
 
         return state
@@ -261,7 +280,9 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
     private string HandleCaptureBeatLeaderId(Dictionary<string, object> sbArgs)
     {
         if (!sbArgs.TryGetArg("BeatLeaderId", out string beatLeaderId))
+        {
             throw new InvalidOperationException("Failed to capture BeatLeaderId.");
+        }
 
         _beatSaberService.SetBeatLeaderIdGlobal(beatLeaderId);
 
@@ -269,18 +290,20 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
     }
 
     private string HandleVersionCommand() =>
-        $"Beat Saber Extensions For StreamerBot (Version: {_version})";
-
-    private int GetQueueDisplayCountOrDefault(Dictionary<string, object> sbArgs) =>
-        sbArgs.TryGetArg("input0", out string input0)
-        && int.TryParse(input0, out var maxCount)
-        && maxCount > 0
-            ? maxCount
-            : UserConfig.MaximumQueueItemCount;
+        $"Beat Saber Extensions For StreamerBot Version: {UserConfig.Version} {UserConfig.GithubUrl}";
 
     private string HandleRaidRequest(Dictionary<string, object> sbArgs)
     {
         var user = cph.GetUserInfoFromArgs<BaseUserInfo>(sbArgs);
+
+        if (UserConfig.BumpNextRequestFromRaider is false and var bumpConfig)
+        {
+            Logger.Log(
+                $"Ignoring raid request from {user.GetFormattedDisplayName()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {bumpConfig}."
+            );
+
+            return null;
+        }
 
         if (!sbArgs.TryGetArg("BsrId", out string bsrId))
         {
@@ -298,7 +321,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
         if (!_beatSaberService.ValidateBeatmapId(bsrId))
         {
-            logger.Log(
+            Logger.Log(
                 $"{user.GetFormattedDisplayName()} attempted to make a raid request using an invalid BSR Id. Taking no action."
             );
             return null;
@@ -310,7 +333,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
         // Use !att when the queue is closed
         if (_beatSaberService.GetQueueState() is false)
         {
-            logger.LogInfo($"Adding {requestInfo} using !att.");
+            Logger.LogInfo($"Adding raid request for raider {requestInfo} using !att.");
 
             cph.SendMessage($"!att {bsrId}");
 
@@ -324,7 +347,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
             if (!attSuccess)
             {
-                logger.LogWarn(
+                Logger.LogWarn(
                     $"Failed to find BSR ID: \"{bsrId}\" in the queue after !att command."
                 );
 
@@ -333,13 +356,15 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
         }
         else
         {
+            Logger.LogInfo($"Adding raid request for raider {requestInfo} using !mtt.");
+
             for (var attempt = 0; request is null; attempt++)
             {
                 request = GetQueueItem(user: user, id: bsrId, first: true);
 
                 if (request is not null)
                 {
-                    logger.LogInfo($"Identified {requestInfo} after {attempt + 1} attempts.");
+                    Logger.LogInfo($"Identified {requestInfo} after {attempt + 1} attempts.");
                 }
                 else
                 {
@@ -357,9 +382,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
             }
         }
 
-        var message = ProcessSongBump(request, out var success, UserConfig.RaidRequestBumpMessage);
-
-        if (success)
+        if (TryProcessSongBump(request, out var message, UserConfig.RaidRequestBumpMessage))
         {
             _beatSaberService.EnsureRaidRequestorsMembershipForUser(request.User, false);
         }
@@ -367,32 +390,32 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
         return message;
     }
 
-    private string ProcessSongBump(
+    private bool TryProcessSongBump(
         QueueItem request,
-        out bool success,
+        out string message,
         string bumpMessage = "Song bump",
         BaseUserInfo approver = null
     )
     {
         approver ??= cph.TwitchGetBroadcaster();
         var bumpInfo =
-            $"{bumpMessage.ToLower()} for {request.User.GetFormattedDisplayName()} (BSR Id: {request.Id})";
+            $"{bumpMessage.ToLowerInvariant()} for {request.User.GetFormattedDisplayName()} (BSR Id: {request.Id})";
 
-        logger.LogInfo(
+        Logger.LogInfo(
             $"Attempting to process {bumpInfo} approved by {approver.GetFormattedDisplayName()}."
         );
 
         if (request is { Position: 1 })
         {
-            logger.Log($"{bumpInfo} is already at the top of the queue.");
+            Logger.Log($"{bumpInfo} is already at the top of the queue.");
 
-            success = true;
-            return GetBumpSongMessage(request, bumpMessage, approver);
+            message = GetBumpSongMessage(request, bumpMessage, approver);
+            return false;
         }
 
         cph.SendMessage($"!mtt {request.Id}");
 
-        success = false;
+        var success = false;
 
         for (var attempt = 0; !success && attempt < UserConfig.BumpValidationAttempts; attempt++)
         {
@@ -408,18 +431,20 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
 
         if (success)
         {
-            logger.Log($"Successfully processed {bumpInfo}.");
+            Logger.Log($"Successfully processed {bumpInfo}.");
 
-            return GetBumpSongMessage(request, UserConfig.RaidRequestBumpMessage);
+            message = GetBumpSongMessage(request, UserConfig.RaidRequestBumpMessage, approver);
+            return true;
         }
         else
         {
-            logger.LogError($"Failed to verify {bumpInfo}.");
+            Logger.LogError($"Failed to verify {bumpInfo}.");
 
-            return string.Format(
+            message = string.Format(
                 UserConfig.SongBumpFailureFormat,
                 request.ToFriendlyString(withPosition: false, withUserName: true)
             );
+            return false;
         }
     }
 
@@ -430,30 +455,39 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph, StreamerBotLogger l
     ) =>
         string.Format(
             UserConfig.SongMessageFormat,
-            detail,
             request.Id,
+            detail,
             request.User.GetFormattedDisplayName(),
             (approver ?? cph.TwitchGetBroadcaster()).GetFormattedDisplayName()
         );
 
     private QueueItem GetQueueItem(
-        List<QueueItem> queue = null,
+        ReadOnlyCollection<QueueItem> queue = null,
         BaseUserInfo user = null,
         string id = null,
         bool first = false
-    ) =>
-        user is null && id is null
-            ? throw new InvalidOperationException(
+    )
+    {
+        if (user is null && id is null)
+        {
+            throw new InvalidOperationException(
                 $"Either {nameof(user)} or {nameof(id)} must be non-null."
-            )
-            : (queue ?? _beatSaberService.Queue).FindAll(item =>
-                (user is null || item.BelongsToUser(user))
-                && (id is null || id.Trim().Equals(item.Id, StringComparison.OrdinalIgnoreCase))
-            ) switch
-            {
-                { Count: 1 } items => items[0],
-                { Count: > 1 } items when first => items.First(),
-                { Count: > 1 } items => items.Last(),
-                _ => null,
-            };
+            );
+        }
+
+        queue ??= _beatSaberService.Queue;
+
+        var matchingItems = (
+            user is not null
+                ? queue.Where(item => item.BelongsToUser(user))
+                : queue.Where(item => item.Id.Equals(id.Trim(), StringComparison.OrdinalIgnoreCase))
+        ).ToList();
+
+        return matchingItems switch
+        {
+            not { Count: > 0 } => null,
+            { Count: 1 } items => items.Single(),
+            { Count: > 1 } items => first ? items.First() : items.Last(),
+        };
+    }
 }

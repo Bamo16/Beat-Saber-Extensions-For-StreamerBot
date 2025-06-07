@@ -3,22 +3,25 @@ using System.Collections.Generic;
 using System.Linq;
 using BeatSaberExtensions.Extensions.EnumerableExtensions;
 using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
-using BeatSaberExtensions.Utility.Logging;
 
 namespace BeatSaberExtensions.Utility.Http.BeatSaver;
 
-public class BeatSaverClient(StreamerBotLogger logger, bool logWhenSuccessful = false)
-    : BaseHttpClient(new Uri(BeatSaverBaseUri), logger, logWhenSuccessful)
+public class BeatSaverClient(bool logWhenSuccessful = false)
+    : BaseHttpClient(new Uri(BeatSaverBaseUri), logWhenSuccessful)
 {
     private const string BeatSaverBaseUri = "https://api.beatsaver.com/";
 
-    private static readonly object _lock = new();
+    private static readonly TimeSpan _cacheEvictionInterval = TimeSpan.FromMinutes(15);
 
-    private static readonly Dictionary<string, Beatmap> _cachedBeatmaps = new(
-        StringComparer.OrdinalIgnoreCase
-    );
+    private readonly object _lock = new object();
+    private readonly Dictionary<string, Beatmap> _cachedBeatmaps = [];
 
-    public Beatmap GetBeatmap(string id) => GetBeatmaps([id]).Values.FirstOrDefault();
+    private DateTime _lastCacheEvictionCheck = DateTime.MinValue;
+
+    private bool ShouldPerformCacheEviction =>
+        _lastCacheEvictionCheck + _cacheEvictionInterval <= DateTime.UtcNow;
+
+    public Beatmap GetBeatmap(string id) => GetBeatmaps([id]).Values.SingleOrDefault();
 
     public Dictionary<string, Beatmap> GetBeatmaps(IEnumerable<string> ids)
     {
@@ -27,34 +30,7 @@ public class BeatSaverClient(StreamerBotLogger logger, bool logWhenSuccessful = 
             var (cachedBeatmaps, idsToFetch) = GetCachedBeatmapsAndIdsToFetch(ids);
 
             return cachedBeatmaps
-                .Concat(
-                    (
-                        idsToFetch switch
-                        {
-                            not { Count: > 0 } => [],
-
-                            { Count: 1 } => SendHttpRequest<Beatmap>(
-                                relativePath: $"/maps/id/{idsToFetch.Single()}"
-                            )
-                                is { } singleBeatmap
-                                ? [singleBeatmap]
-                                : [],
-
-                            _ => idsToFetch
-                                .ChunkBy(50)
-                                .Select(chunk =>
-                                    $"/maps/ids/{Uri.EscapeDataString(string.Join(",", chunk))}"
-                                )
-                                .Select(relativePath =>
-                                    SendHttpRequest<Dictionary<string, Beatmap>>(
-                                        relativePath: relativePath,
-                                        defaultValue: []
-                                    )
-                                )
-                                .SelectMany(response => response.Values),
-                        }
-                    ).Select(beatmap => _cachedBeatmaps[beatmap.Id] = beatmap)
-                )
+                .Concat(FetchBeatmaps(idsToFetch))
                 .ToDictionary(
                     beatmap => beatmap.Id,
                     beatmap => beatmap,
@@ -63,31 +39,81 @@ public class BeatSaverClient(StreamerBotLogger logger, bool logWhenSuccessful = 
         }
     }
 
+    private IEnumerable<Beatmap> FetchBeatmaps(List<string> idsToFetch)
+    {
+        if (idsToFetch is { Count: 0 })
+        {
+            return [];
+        }
+
+        var beatmaps = idsToFetch is { Count: 1 }
+            ? [SendHttpRequest<Beatmap>(relativePath: $"/maps/id/{idsToFetch.Single()}")]
+            : GetMultiBeatmapRelativePath(idsToFetch)
+                .Select(relativePath =>
+                    SendHttpRequest<Dictionary<string, Beatmap>>(
+                        relativePath: relativePath,
+                        defaultValue: []
+                    )
+                )
+                .SelectMany(response => response.Values);
+
+        foreach (var beatmap in beatmaps)
+        {
+            _cachedBeatmaps[beatmap.Id] = beatmap;
+        }
+
+        return beatmaps;
+    }
+
     private (List<Beatmap> CachedBeatmaps, List<string> IdsToFetch) GetCachedBeatmapsAndIdsToFetch(
         IEnumerable<string> ids
     )
     {
-        // Evict expired cached beatmaps
-        _cachedBeatmaps
-            .Where(kvp => kvp is { Value.ShouldEvict: true })
-            .Select(kvp => kvp.Key)
-            .ToList()
-            .ForEach(id => _cachedBeatmaps.Remove(id));
+        EvictExpiredBeatmaps();
+
+        var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase).Select(id => id.ToLower());
 
         var cachedBeatmaps = new List<Beatmap>();
         var idsToFetch = new List<string>();
 
-        foreach (var id in ids.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var id in distinctIds)
         {
-            if (
-                _cachedBeatmaps.TryGetValue(id, out var cachedBeatmap)
-                && cachedBeatmap is { ShouldRefresh: false }
-            )
-                cachedBeatmaps.Add(cachedBeatmap);
+            if (_cachedBeatmaps.TryGetValue(id, out var cachedBeatmap))
+            {
+                if (cachedBeatmap is { ShouldRefresh: false })
+                {
+                    cachedBeatmaps.Add(cachedBeatmap);
+                }
+                else
+                {
+                    _cachedBeatmaps.Remove(cachedBeatmap.Id);
+                    idsToFetch.Add(id);
+                }
+            }
             else
-                idsToFetch.Add(id.ToLower());
+            {
+                idsToFetch.Add(id);
+            }
         }
 
         return (cachedBeatmaps, idsToFetch);
     }
+
+    private void EvictExpiredBeatmaps()
+    {
+        if (ShouldPerformCacheEviction)
+        {
+            _cachedBeatmaps
+                .Where(kvp => kvp.Value.ShouldRefresh)
+                .Select(kvp => kvp.Key)
+                .ToList()
+                .ForEach(id => _cachedBeatmaps.Remove(id));
+
+            _lastCacheEvictionCheck = DateTime.UtcNow;
+        }
+    }
+
+    private static IEnumerable<string> GetMultiBeatmapRelativePath(IEnumerable<string> ids) =>
+        ids.ChunkBy(50)
+            .Select(chunk => $"/maps/ids/{Uri.EscapeDataString(string.Join(",", chunk))}");
 }
