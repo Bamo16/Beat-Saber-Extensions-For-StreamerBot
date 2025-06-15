@@ -11,7 +11,8 @@ namespace BeatSaberExtensions.Utility;
 
 public static class UserConfig
 {
-    public const string GithubUrl = "https://github.com/Bamo16/Beat-Saber-Extensions-For-StreamerBot";
+    public const string GithubUrl =
+        "https://github.com/Bamo16/Beat-Saber-Extensions-For-StreamerBot";
 
     private static readonly object _lock = new object();
     private static readonly ConcurrentDictionary<string, object> _configValues = [];

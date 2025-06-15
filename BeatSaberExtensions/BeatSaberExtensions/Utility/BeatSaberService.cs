@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -36,18 +35,13 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
         (value) => value is null
     );
 
-    private readonly BeatSaverClient _beatSaverClient = new BeatSaverClient();
-    private readonly BeatLeaderClient _beatLeaderClient = new BeatLeaderClient();
-
     private Cached<bool> _queueState;
     private Cached<string> _beatSaberRoot;
-    private JsonSerializer _databaseJsonSerializer;
-    private Cached<DatabaseJson> _databaseJson;
     private bool _waitingForBeatLeaderId;
 
     public bool IsConfigured => !string.IsNullOrEmpty(GetBeatSaberRoot());
-    public BeatSaverClient BeatSaverClient => _beatSaverClient;
-    public BeatLeaderClient BeatLeaderClient => _beatLeaderClient;
+    public BeatSaverClient BeatSaverClient = new BeatSaverClient();
+    public BeatLeaderClient BeatLeaderClient = new BeatLeaderClient();
     public DatabaseJson DatabaseJson => GetDatabaseJson();
     public ReadOnlyCollection<QueueItem> Queue => DatabaseJson.Queue;
     public string BeatLeaderId
@@ -102,7 +96,7 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             return false;
         }
 
-        var beatmap = _beatSaverClient.GetBeatmap(sanitzedId);
+        var beatmap = BeatSaverClient.GetBeatmap(sanitzedId);
 
         // BSR ID belongs to banned mapper
         if (DatabaseJson.BannedMappers.Contains(beatmap.Metadata.LevelAuthorName))
@@ -115,8 +109,8 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
 
     public void Dispose()
     {
-        _beatSaverClient?.Dispose();
-        _beatLeaderClient?.Dispose();
+        BeatSaverClient?.Dispose();
+        BeatLeaderClient?.Dispose();
     }
 
     private string Remap(string id) =>
@@ -207,26 +201,55 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             ? Path.Combine(GetBeatSaberRoot(), "UserData", "BeatSaberPlus", "ChatRequest", fileName)
             : null;
 
-    private DatabaseJson GetDatabaseJson() =>
-        (
-            _databaseJson ??= new Cached<DatabaseJson>(
-                () =>
-                    GetBeatSaberPlusFilePath("Database.json") is { } path
-                    && !string.IsNullOrEmpty(path)
-                        ? (
-                            _databaseJsonSerializer ??= new DatabaseJsonConverter(
-                                cph,
-                                BeatSaverClient
-                            ).GetSerializer()
-                        ).Deserialize<DatabaseJson>(
-                            new JsonTextReader(new StringReader(File.ReadAllText(path)))
-                        )
-                        : throw new JsonSerializationException(
-                            "Failed to deserialize Database.json."
-                        ),
-                TimeSpan.FromMilliseconds(1000)
-            )
-        ).Value;
+    private DatabaseJson GetDatabaseJson()
+    {
+        if (
+            GetBeatSaberPlusFilePath("Database.json") is not { } path
+            || !string.IsNullOrEmpty(path)
+        )
+        {
+            throw new JsonSerializationException("Failed to deserialize Database.json.");
+        }
+
+        var json = File.ReadAllText(path);
+        var internalData = JObject.Parse(json).ToObject<DatabaseJsonInternal>();
+        var beatmaps = BeatSaverClient.GetBeatmaps(internalData.Queue.Select(item => item.Id));
+
+        for (var i = 0; i < internalData.Queue.Count; i++)
+        {
+            internalData.Queue[i].Position = i + 1;
+
+            if (beatmaps.TryGetValue(internalData.Queue[i].Id, out var beatmap))
+                internalData.Queue[i].Beatmap = beatmap;
+        }
+
+        var queue = internalData.Queue;
+        var history = internalData
+            .History.Select(item => item.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var blacklist = internalData
+            .Blacklist.Select(item => item.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var bannedUsers = internalData.BannedUsers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var bannedMappers = internalData.BannedMappers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var remaps = internalData
+            .Remaps.GroupBy(remap => remap.From)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().To,
+                StringComparer.OrdinalIgnoreCase
+            );
+
+        return new DatabaseJson
+        {
+            Queue = queue,
+            History = history,
+            Blacklist = blacklist,
+            BannedUsers = bannedUsers,
+            BannedMappers = bannedMappers,
+            Remaps = remaps,
+        };
+    }
 
     private string GetBeatSaberRoot() =>
         (
@@ -274,7 +297,7 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             ? Path.GetDirectoryName(fileName)
             : null;
 
-    private static string GetGlobalVarName([CallerMemberName] string memberName = "") =>
+    private static string GetGlobalVarName([CallerMemberName] string memberName = null) =>
         memberName?.TrimStart('_') is { Length: > 0 } trimmed
             ? $"{GlobalVarPrefix}.{trimmed[0].ToString().ToUpper()}{trimmed.Substring(1)}"
             : throw new InvalidOperationException(
