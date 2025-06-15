@@ -41,7 +41,7 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
 
     private IEnumerable<Beatmap> FetchBeatmaps(List<string> idsToFetch)
     {
-        if (idsToFetch is { Count: 0 })
+        if (idsToFetch is not { Count: > 0 })
         {
             return [];
         }
@@ -114,6 +114,5 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
     }
 
     private static IEnumerable<string> GetMultiBeatmapRelativePath(IEnumerable<string> ids) =>
-        ids.ChunkBy(50)
-            .Select(chunk => $"/maps/ids/{Uri.EscapeDataString(string.Join(",", chunk))}");
+        ids.ChunkBy(50).Select(chunk => $"/maps/ids/{string.Join(",", chunk)}");
 }
