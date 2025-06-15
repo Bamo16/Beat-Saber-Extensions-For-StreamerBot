@@ -196,17 +196,33 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
         return beatLeaderId is not null;
     }
 
-    private string GetBeatSaberPlusFilePath(string fileName) =>
-        IsConfigured
-            ? Path.Combine(GetBeatSaberRoot(), "UserData", "BeatSaberPlus", "ChatRequest", fileName)
-            : null;
+    private string GetBeatSaberPlusFilePath(string fileName)
+    {
+        if (!IsConfigured)
+        {
+            Logger.LogError($"");
+
+            return null;
+        }
+
+        var bsPlusFilePath = Path.Combine(
+            GetBeatSaberRoot(),
+            "UserData",
+            "BeatSaberPlus",
+            "ChatRequest",
+            fileName
+        );
+
+        Logger.Log(
+            $"Fetched Beat Saber Plus path for file: \"{fileName}\", full path: \"{bsPlusFilePath}\"."
+        );
+
+        return bsPlusFilePath;
+    }
 
     private DatabaseJson GetDatabaseJson()
     {
-        if (
-            GetBeatSaberPlusFilePath("Database.json") is not { } path
-            || !string.IsNullOrEmpty(path)
-        )
+        if (GetBeatSaberPlusFilePath("Database.json") is not { } path || string.IsNullOrEmpty(path))
         {
             throw new JsonSerializationException("Failed to deserialize Database.json.");
         }
@@ -217,10 +233,15 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
 
         for (var i = 0; i < internalData.Queue.Count; i++)
         {
-            internalData.Queue[i].Position = i + 1;
+            var item = internalData.Queue[i];
+
+            item.Position = i + 1;
+            item.User = cph.GetUserInfo<BaseUserInfo>(item.UserLogin);
 
             if (beatmaps.TryGetValue(internalData.Queue[i].Id, out var beatmap))
-                internalData.Queue[i].Beatmap = beatmap;
+            {
+                item.Beatmap = beatmap;
+            }
         }
 
         var queue = internalData.Queue;
