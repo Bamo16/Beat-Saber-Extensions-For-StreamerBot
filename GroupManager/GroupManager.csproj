@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFrameworks>net48</TargetFrameworks>
     <Nullable>disable</Nullable>
@@ -7,10 +6,10 @@
     <AssemblyName>GroupManager</AssemblyName>
     <RootNamespace>GroupManager</RootNamespace>
     <LangVersion>latest</LangVersion>
-    <NoWarn>CS0114</NoWarn> <!-- Ignore CS114 errors -->
+    <NoWarn>CS0114</NoWarn>
+    <!-- Ignore CS114 errors -->
     <DefineConstants>OUTSIDE_STREAMERBOT</DefineConstants>
   </PropertyGroup>
-
   <ItemGroup>
     <Reference Include="Streamer.bot.Plugin.Interface">
       <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.dll</HintPath>
@@ -24,6 +23,8 @@
     <Reference Include="Streamer.bot.Common">
       <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Common.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DotnetAssembliesPath)\Newtonsoft.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
-
 </Project>

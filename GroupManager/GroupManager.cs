@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json;
 using Streamer.bot.Common.Events;
 using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Enums;
@@ -20,18 +21,29 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     private const string StreamerBotUsersGroup = "StreamerBot Users";
     private const string RaidRequestorGroupName = "Raid Requestors";
 
+    private static readonly string[] _ensureGroupsExist =
+    [
+        RaidRequestorGroupName,
+        AllKnownUsersGroup,
+        LocalizedDisplayUsersGroup,
+        StreamerBotUsersGroup,
+    ];
     private static readonly object _clearGroupsLock = new object();
     private static readonly TimeSpan _timeBetweenStreamsThreshold = TimeSpan.FromMinutes(30);
 
     private DateTime LastLiveTimestamp
     {
-        get => CPH.GetDateTimeGlobalVar("Obs.LastLiveTimestamp");
-        set => CPH.SetDateTimeGlobalVar("Obs.LastLiveTimestamp", value);
+        get => CPH.GetDateTimeGlobalVar("GroupManager.LastLiveTimestamp");
+        set => CPH.SetDateTimeGlobalVar("GroupManager.LastLiveTimestamp", value);
     }
     private List<string> GroupsToClearOnNewStream
     {
-        get => CPH.GetGlobalVar<List<string>>("GroupManager.GroupsToClearOnNewStream") ?? [];
-        set => CPH.SetGlobalVar("GroupManager.GroupsToClearOnNewStream", value);
+        get =>
+            CPH.GetCustomGlobalVar<List<string>>(
+                "GroupManager.GroupsToClearOnNewStream",
+                defaultValue: [RaidRequestorGroupName]
+            );
+        set => CPH.SetCustomGlobalVar("GroupManager.GroupsToClearOnNewStream", value);
     }
     private bool ShouldClearGroups =>
         DateTime.UtcNow > LastLiveTimestamp + _timeBetweenStreamsThreshold;
@@ -60,22 +72,16 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
         try
         {
-            switch (eventType)
+            executeSuccess = eventType switch
             {
-                case EventType.StreamerbotStarted:
-                case EventType.ObsStreamingStarted:
-                case EventType.TimedAction:
-                    SetLastLiveTimestamp();
-                    executeSuccess = true;
-                    break;
+                EventType.StreamerbotStarted
+                or EventType.ObsStreamingStarted
+                or EventType.TimedAction => SetLastLiveTimestamp(),
 
-                case EventType.CommandTriggered:
-                    executeSuccess = HandleAddUserToGroupsCommand(sbArgs);
-                    break;
+                EventType.CommandTriggered => HandleAddUserToGroupsCommand(sbArgs),
 
-                default:
-                    throw new InvalidOperationException($"Unsupported EventType: {eventType}.");
-            }
+                _ => throw new InvalidOperationException($"Unsupported EventType: {eventType}."),
+            };
         }
         catch (Exception ex)
         {
@@ -83,29 +89,30 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         }
         finally
         {
-            Logger.LogActionCompletion(executeSuccess);
+            Logger.LogActionCompletion(executeSuccess, eventType);
         }
 
         return executeSuccess;
     }
 
-    private void SetLastLiveTimestamp()
+    private bool SetLastLiveTimestamp()
     {
         if (!CPH.StreamIsLive())
         {
-            return;
+            return true;
         }
 
         lock (_clearGroupsLock)
         {
             if (ShouldClearGroups)
             {
+                var groupsToClear = GroupsToClearOnNewStream;
                 var message =
-                    $"{nameof(LastLiveTimestamp)} was longer than {_timeBetweenStreamsThreshold.ToFriendlyString()} ago. Clearing users from the following groups: [{string.Join(", ", GroupsToClearOnNewStream)}].";
+                    $"{nameof(LastLiveTimestamp)} was longer than {_timeBetweenStreamsThreshold.ToFriendlyString()} ago. Clearing users from the following groups: [{string.Join(", ", groupsToClear)}].";
 
                 Logger.LogWarn(message);
 
-                foreach (var group in GroupsToClearOnNewStream)
+                foreach (var group in groupsToClear)
                 {
                     CPH.EnsureGroupState(group, true);
                     CPH.ClearUsersFromGroup(group);
@@ -123,6 +130,8 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
             LastLiveTimestamp = now;
         }
+
+        return true;
     }
 
     private bool HandleAddUserToGroupsCommand(Dictionary<string, object> sbArgs)
@@ -158,30 +167,17 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
     private void InitializeGroups()
     {
-        var groupsToClear = GroupsToClearOnNewStream;
-
-        if (!groupsToClear.Contains(RaidRequestorGroupName))
+        foreach (var group in _ensureGroupsExist)
         {
-            groupsToClear = [.. groupsToClear, RaidRequestorGroupName];
-            GroupsToClearOnNewStream = groupsToClear;
-        }
-
-        var ensureGroupsExist = new List<string>(
-            [
-                .. groupsToClear,
-                AllKnownUsersGroup,
-                LocalizedDisplayUsersGroup,
-                StreamerBotUsersGroup,
-            ]
-        );
-
-        foreach (var group in ensureGroupsExist)
             CPH.EnsureGroupState(group, true);
+        }
 
         CPH.ClearUsersFromGroup(StreamerBotUsersGroup);
 
         foreach (var user in CPH.GetStreamerBotAccounts())
+        {
             CPH.EnsureGroupMembershipForUser(user, StreamerBotUsersGroup, true);
+        }
     }
 }
 
@@ -265,11 +261,15 @@ public static class Logger
         sbArgs = new Dictionary<string, object>(args);
         eventType = _cph.GetEventType();
 
-        Log("Action Started.", methodName: methodName, lineNumber: lineNumber);
+        if (eventType is not EventType.TimedAction)
+        {
+            Log("Action Started.", methodName: methodName, lineNumber: lineNumber);
+        }
     }
 
     public static void LogActionCompletion(
         bool executeSuccess,
+        EventType eventType,
         string successArgName = "ExecuteSuccess",
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
@@ -277,12 +277,15 @@ public static class Logger
     {
         _cph.SetArgument(successArgName, executeSuccess);
 
-        Log(
-            $"Action completed with {successArgName}: {executeSuccess}.",
-            executeSuccess ? LogAction.Info : LogAction.Warn,
-            methodName: methodName,
-            lineNumber: lineNumber
-        );
+        if (eventType is not EventType.TimedAction)
+        {
+            Log(
+                $"Action completed with {successArgName}: {executeSuccess}.",
+                executeSuccess ? LogAction.Info : LogAction.Warn,
+                methodName: methodName,
+                lineNumber: lineNumber
+            );
+        }
     }
 
     public static void HandleException(
@@ -314,7 +317,8 @@ public static class Logger
         int? truncateAfterChars = null,
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) => (
+    ) =>
+        (
             (logAction ?? _defaultLogAction) switch
             {
                 _ when _cph is null => _ => { },
@@ -325,7 +329,13 @@ public static class Logger
                 LogAction.Error => _cph.LogError,
                 _ => new Action<string>(_ => { }),
             }
-        )(Truncate($"[{_logMessageTag}] [{methodName} L{lineNumber}] {logLine}", logAction, truncateAfterChars));
+        )(
+            Truncate(
+                $"[{_logMessageTag}] [{methodName} L{lineNumber}] {logLine}",
+                logAction,
+                truncateAfterChars
+            )
+        );
 
     private static string Truncate(
         string logLine,
@@ -340,6 +350,8 @@ public static class Logger
 
 public static class InlineInvokeProxyExtensions
 {
+    private const string DateTimeFormat = "yyyy-MM-dd hh:mm:ss.fff tt zzz";
+
     public static DateTime GetDateTimeGlobalVar(
         this IInlineInvokeProxy cph,
         string varName,
@@ -358,9 +370,27 @@ public static class InlineInvokeProxyExtensions
     ) =>
         cph.SetGlobalVar(
             varName,
-            (value ?? DateTime.UtcNow).ToLocalTime().ToString("yyyy-MM-dd hh:mm:ss.fff tt zzz"),
+            (value ?? DateTime.UtcNow).ToLocalTime().ToString(DateTimeFormat),
             persisted
         );
+
+    public static T GetCustomGlobalVar<T>(
+        this IInlineInvokeProxy cph,
+        string varName,
+        bool persisted = true,
+        T defaultValue = default
+    ) =>
+        cph.GetGlobalVar<string>(varName, persisted) is string stringValue
+        && !string.IsNullOrEmpty(stringValue)
+            ? JsonConvert.DeserializeObject<T>(stringValue) ?? defaultValue
+            : defaultValue;
+
+    public static void SetCustomGlobalVar<T>(
+        this IInlineInvokeProxy cph,
+        string varName,
+        T value,
+        bool persisted = true
+    ) => cph.SetGlobalVar(varName, JsonConvert.SerializeObject(value), persisted);
 
     public static bool StreamIsLive(this IInlineInvokeProxy cph) =>
         cph.ObsIsConnected() && cph.ObsIsStreaming();
@@ -373,19 +403,6 @@ public static class InlineInvokeProxyExtensions
             { Bot: { } bot } => [bot],
             _ => [],
         };
-
-    private static bool TryParseDateTime(this string value, out DateTime result)
-    {
-        if (!DateTime.TryParse(value, null, DateTimeStyles.RoundtripKind, out result))
-            return false;
-
-        if (result is { Kind: DateTimeKind.Unspecified })
-            result = DateTime.SpecifyKind(result, DateTimeKind.Local);
-
-        result = result.ToUniversalTime();
-
-        return true;
-    }
 
     public static bool EnsureGroupMembershipForUser(
         this IInlineInvokeProxy cph,
@@ -428,6 +445,24 @@ public static class InlineInvokeProxyExtensions
         cph.LogError(
             $"[{actionName}] [{callerName ?? "Unknown Method"}] {aggEx.GetFormattedExceptionMessage()}"
         );
+    }
+
+    private static bool TryParseDateTime(
+        this string value,
+        out DateTime result,
+        string format = DateTimeFormat
+    )
+    {
+        var success = DateTimeOffset.TryParseExact(
+            value,
+            format,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeLocal,
+            out var dateTimeOffset
+        );
+
+        result = success ? dateTimeOffset.UtcDateTime : default;
+        return success;
     }
 }
 
