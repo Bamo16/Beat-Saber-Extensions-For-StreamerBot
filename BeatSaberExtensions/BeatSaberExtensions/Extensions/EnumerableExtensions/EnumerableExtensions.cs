@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BeatSaberExtensions.Utility;
+using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 
 namespace BeatSaberExtensions.Extensions.EnumerableExtensions;
 
@@ -12,8 +14,14 @@ public static class EnumerableExtensions
             .GroupBy(element => element.Index / size)
             .Select(group => group.Select(element => element.Item));
 
-    public static TimeSpan AccumulateDuration<T>(
-        this IEnumerable<T> items,
-        Func<T, TimeSpan> selector
-    ) => items.Select(selector).Aggregate(TimeSpan.Zero, (total, duration) => total.Add(duration));
+    public static TimeSpan GetEstimatedWaitTime(
+        this IEnumerable<QueueItem> queue,
+        QueueItem request
+    ) =>
+        queue
+            .Take(request.Position - 1)
+            .Aggregate(
+                TimeSpan.Zero,
+                (total, current) => total.Add(current.Beatmap.Metadata.Duration)
+            );
 }

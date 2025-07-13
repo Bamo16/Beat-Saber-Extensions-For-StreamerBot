@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using BeatSaberExtensions.Extensions.FormattableExtensions;
 
 namespace BeatSaberExtensions.Extensions.StringExtensions;
@@ -14,11 +15,23 @@ public static class StringExtensions
     private const string TruncationReplacement = "…";
     private const char BraillePatternBlankChar = '\u2800';
 
+    private static readonly Regex _whitespacePattern = new Regex(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex _requestPattern = new Regex(
+        @"^!bsr\s+(?<BsrId>[a-z0-9]{1,6})\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture
+    );
+
+    public static string MatchBsrRequest(this string input) =>
+        !string.IsNullOrEmpty(input)
+        && _requestPattern.Match(input).Groups["BsrId"] is { Success: true, Value: { } value }
+            ? value
+            : null;
+
     public static string Pluralize<T>(
         this string noun,
         T quantity,
-        bool excludeQuantity = false,
         string format = null,
+        bool excludeQuantity = false,
         string customPlural = null
     )
         where T : IFormattable
@@ -57,31 +70,40 @@ public static class StringExtensions
 
         var trunc = (truncationReplacement ?? string.Empty).Trim();
         var targetLength = maxLength - trunc.Length;
-        var sb = new StringBuilder();
+        var builder = new StringBuilder();
         var enumerator = StringInfo.GetTextElementEnumerator(sanitized);
 
         // Input is longer than maxLength. Truncate and append truncationReplacement.
         while (enumerator.MoveNext() && enumerator.GetTextElement() is var element)
         {
-            if (sb.Length + element.Length > targetLength)
+            if (builder.Length + element.Length > targetLength)
             {
-                return sb.Append(trunc).ToString();
+                return builder.Append(trunc).ToString();
             }
 
-            sb.Append(element);
+            builder.Append(element);
         }
 
-        return sb.Append(trunc).ToString();
+        return builder.Append(trunc).ToString();
     }
 
     public static string FormatMultilineChatMessage(
         this IEnumerable<string> chatLines,
+        string header = null,
         string lineTruncationReplacement = TruncationReplacement,
-        string messageTruncationReplacement = TruncationReplacement
+        string messageTruncationReplacement = TruncationReplacement,
+        char separatorChar = BraillePatternBlankChar,
+        int maxLineLength = MaxChatLineLength
     ) =>
         string.Join(
                 "\n",
-                chatLines.Select(line => line.FormatChatMessageLine(lineTruncationReplacement))
+                (header is null ? chatLines : chatLines.Prepend(header)).Select(line =>
+                    line.FormatChatMessageLine(
+                        lineTruncationReplacement,
+                        separatorChar,
+                        maxLineLength
+                    )
+                )
             )
             .Truncate(MaxChatMessageLength, messageTruncationReplacement);
 
@@ -103,14 +125,14 @@ public static class StringExtensions
 
     private static string FormatChatMessageLine(
         this string chatLine,
-        string truncationReplacement = TruncationReplacement
+        string truncationReplacement = TruncationReplacement,
+        char separatorChar = BraillePatternBlankChar,
+        int maxLineLength = MaxChatLineLength
     ) =>
         string.Join(
-                BraillePatternBlankChar.ToString(),
-                chatLine
-                    .Split([' ', '\t', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
-                    .Select(part => part.Trim())
+                separatorChar.ToString(),
+                _whitespacePattern.Split(chatLine).Where(part => !string.IsNullOrEmpty(part))
             )
-            .Truncate(MaxChatLineLength, truncationReplacement)
-            .PadRight(MaxChatLineLength, BraillePatternBlankChar);
+            .Truncate(maxLineLength, truncationReplacement)
+            .PadRight(maxLineLength, separatorChar);
 }

@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using BeatSaberExtensions.Enums;
-using BeatSaberExtensions.Extensions.DictionaryExtensions;
 using BeatSaberExtensions.Utility;
 using Streamer.bot.Plugin.Interface.Model;
 
@@ -9,15 +7,12 @@ namespace BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 
 public static class BaseUserInfoExtensions
 {
-    public static bool IsCaller(this BaseUserInfo user, Dictionary<string, object> args) =>
-        user is { UserId: { } userId } && userId == args.GetArgOrDefault<string>("userId");
-
     public static string GetFormattedDisplayName(this BaseUserInfo user) =>
         user is not { UserLogin: { } login, UserName: { } display }
             ? "UnknownUser"
             : (
                 Mode: UserConfig.UsernameDisplayMode,
-                Localized: !login.Equals(display, StringComparison.OrdinalIgnoreCase)
+                Localized: user.HasLocalizedDisplayName()
             ) switch
             {
                 // When mode is UserLoginOnly and DisplayName is localized, show LoginName
@@ -40,4 +35,7 @@ public static class BaseUserInfoExtensions
                     $"Unsupported UsernameDisplayMode: {mode}."
                 ),
             };
+
+    private static bool HasLocalizedDisplayName(this BaseUserInfo user) =>
+        !string.Equals(user.UserName, user.UserLogin, StringComparison.OrdinalIgnoreCase);
 }

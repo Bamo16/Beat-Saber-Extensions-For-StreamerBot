@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Remoting.Messaging;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Streamer.bot.Common.Events;
@@ -21,6 +22,14 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     private const string StreamerBotUsersGroup = "StreamerBot Users";
     private const string RaidRequestorGroupName = "Raid Requestors";
 
+    private static readonly Predicate<ActionContext> _noOpPredicate = (context) =>
+        context
+            is {
+                EventType: EventType.CommandTriggered,
+                Caller.UserId: { } caller,
+                Broadcaster.UserId: { } broadcaster
+            }
+        && caller == broadcaster;
     private static readonly string[] _ensureGroupsExist =
     [
         RaidRequestorGroupName,
@@ -36,15 +45,11 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         get => CPH.GetDateTimeGlobalVar("GroupManager.LastLiveTimestamp");
         set => CPH.SetDateTimeGlobalVar("GroupManager.LastLiveTimestamp", value);
     }
-    private List<string> GroupsToClearOnNewStream
-    {
-        get =>
-            CPH.GetCustomGlobalVar<List<string>>(
-                "GroupManager.GroupsToClearOnNewStream",
-                defaultValue: [RaidRequestorGroupName]
-            );
-        set => CPH.SetCustomGlobalVar("GroupManager.GroupsToClearOnNewStream", value);
-    }
+    private List<string> GroupsToClearOnNewStream =>
+        CPH.GetCustomGlobalVar<List<string>>(
+            "GroupManager.GroupsToClearOnNewStream",
+            defaultValue: [RaidRequestorGroupName]
+        );
     private bool ShouldClearGroups =>
         DateTime.UtcNow > LastLiveTimestamp + _timeBetweenStreamsThreshold;
 
@@ -52,35 +57,37 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
     {
         try
         {
-            Logger.Init(CPH, ActionName);
+            Logger.Init(CPH, ActionName, _noOpPredicate);
             InitializeGroups();
 
             Logger.Log("Completed successfully.");
         }
         catch (Exception ex)
         {
-            if (Logger.IsInitialized)
-                Logger.HandleException(ex, setArgument: false);
-            else
-                CPH.HandleNullLoggerOnInit(ex, nameof(Logger), ActionName);
+            Logger.HandleException(ex, setArgument: false);
         }
     }
 
     public bool Execute()
     {
-        Logger.LogActionStart(args, out var executeSuccess, out var sbArgs, out var eventType);
+        var context = Logger.CreateActionContext(args, out var executeSuccess);
+
+        if (executeSuccess)
+            return executeSuccess;
 
         try
         {
-            executeSuccess = eventType switch
+            executeSuccess = context.EventType switch
             {
                 EventType.StreamerbotStarted
                 or EventType.ObsStreamingStarted
                 or EventType.TimedAction => SetLastLiveTimestamp(),
 
-                EventType.CommandTriggered => HandleAddUserToGroupsCommand(sbArgs),
+                EventType.CommandTriggered => HandleAddUserToGroupsCommand(context),
 
-                _ => throw new InvalidOperationException($"Unsupported EventType: {eventType}."),
+                var eventType => throw new InvalidOperationException(
+                    $"Unsupported EventType: {eventType}."
+                ),
             };
         }
         catch (Exception ex)
@@ -89,7 +96,7 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         }
         finally
         {
-            Logger.LogActionCompletion(executeSuccess, eventType);
+            Logger.LogActionCompletion(executeSuccess);
         }
 
         return executeSuccess;
@@ -134,36 +141,12 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         return true;
     }
 
-    private bool HandleAddUserToGroupsCommand(Dictionary<string, object> sbArgs)
-    {
-        if (!sbArgs.TryGetArg("userId", out string userId))
-        {
-            Logger.LogError($"Failed to get {nameof(userId)} from arguments.");
-
-            return false;
-        }
-
-        if (CPH.TwitchGetUserInfoById(userId) is not { } user)
-        {
-            Logger.LogError($"Failed to get user info for userId: {userId}.");
-
-            return false;
-        }
-
-        if (
-            CPH.EnsureGroupMembershipForUser(user, AllKnownUsersGroup, true)
-            && (
-                !user.HasLocalizedDisplayName()
-                || CPH.EnsureGroupMembershipForUser(user, LocalizedDisplayUsersGroup, true)
-            )
-        )
-        {
-            return true;
-        }
-
-        Logger.LogError($"Failed to add user to groups: {user.GetFormattedDisplayName()}.");
-        return false;
-    }
+    private bool HandleAddUserToGroupsCommand(ActionContext context) =>
+        CPH.EnsureGroupMembershipForUser(context.Caller, AllKnownUsersGroup, true)
+        && (
+            !context.Caller.HasLocalizedDisplayName()
+            || CPH.EnsureGroupMembershipForUser(context.Caller, LocalizedDisplayUsersGroup, true)
+        );
 
     private void InitializeGroups()
     {
@@ -185,6 +168,7 @@ public static class Logger
 {
     private static IInlineInvokeProxy _cph;
     private static string _logMessageTag;
+    private static Predicate<ActionContext> _noOpPredicate;
     private static LogAction _defaultLogAction;
     private static int _truncateAfterChars;
     private static int _truncateAfterCharsError;
@@ -194,6 +178,7 @@ public static class Logger
     public static void Init(
         IInlineInvokeProxy cph,
         string logMessageTag,
+        Predicate<ActionContext> noOpPredicate = null,
         LogAction defaultLogAction = LogAction.Info,
         int truncateAfterChars = 1000,
         int truncateAfterCharsError = 3000
@@ -201,6 +186,7 @@ public static class Logger
     {
         _cph = cph;
         _logMessageTag = logMessageTag;
+        _noOpPredicate = noOpPredicate ?? ((context) => true);
         _defaultLogAction = defaultLogAction;
         _truncateAfterChars = truncateAfterChars;
         _truncateAfterCharsError = truncateAfterCharsError;
@@ -248,45 +234,72 @@ public static class Logger
         [CallerLineNumber] int lineNumber = 0
     ) => Log(logLine, LogAction.Error, truncateAfterChars, methodName, lineNumber);
 
-    public static void LogActionStart(
+    public static ActionContext CreateActionContext(
         Dictionary<string, object> args,
         out bool executeSuccess,
-        out Dictionary<string, object> sbArgs,
-        out EventType eventType,
+        string label = "Action started with",
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        executeSuccess = false;
-        sbArgs = new Dictionary<string, object>(args);
-        eventType = _cph.GetEventType();
-
-        if (eventType is not EventType.TimedAction)
+        if (!IsInitialized)
         {
-            Log("Action Started.", methodName: methodName, lineNumber: lineNumber);
+            throw new InvalidOperationException(
+                $"You must call Init() before calling CreateActionContext."
+            );
         }
+
+        var context = new ActionContext(args, _cph);
+
+        if (_noOpPredicate.Invoke(context))
+        {
+            executeSuccess = true;
+            SetExecuteSuccessArgument(executeSuccess);
+
+            return context;
+        }
+
+        executeSuccess = false;
+
+        context.LogArgs(label, methodName, lineNumber);
+
+        return context;
     }
 
     public static void LogActionCompletion(
         bool executeSuccess,
-        EventType eventType,
-        string successArgName = "ExecuteSuccess",
         [CallerMemberName] string methodName = null,
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        _cph.SetArgument(successArgName, executeSuccess);
+        SetExecuteSuccessArgument(executeSuccess);
 
-        if (eventType is not EventType.TimedAction)
-        {
-            Log(
-                $"Action completed with {successArgName}: {executeSuccess}.",
-                executeSuccess ? LogAction.Info : LogAction.Warn,
-                methodName: methodName,
-                lineNumber: lineNumber
-            );
-        }
+        Log(
+            $"Action completed with ExecuteSuccess: {executeSuccess}.",
+            executeSuccess ? LogAction.Info : LogAction.Warn,
+            methodName: methodName,
+            lineNumber: lineNumber
+        );
     }
+
+    public static void LogObject(
+        object logObject,
+        string label = null,
+        LogAction? logAction = null,
+        int? truncateAfterChars = null,
+        [CallerMemberName] string methodName = null,
+        [CallerLineNumber] int lineNumber = 0
+    ) =>
+        Log(
+            JsonConvert.SerializeObject(logObject, Formatting.Indented) is var serialized
+            && !string.IsNullOrEmpty(label)
+                ? $"{label}:\n{serialized}"
+                : serialized,
+            logAction,
+            truncateAfterChars,
+            methodName,
+            lineNumber
+        );
 
     public static void HandleException(
         Exception ex,
@@ -329,7 +342,7 @@ public static class Logger
                 LogAction.Error => _cph.LogError,
                 _ => new Action<string>(_ => { }),
             }
-        )(
+        ).Invoke(
             Truncate(
                 $"[{_logMessageTag}] [{methodName} L{lineNumber}] {logLine}",
                 logAction,
@@ -346,11 +359,62 @@ public static class Logger
             truncateAfterChars
                 ?? (logAction is LogAction.Error ? _truncateAfterCharsError : _truncateAfterChars)
         );
+
+    private static void SetExecuteSuccessArgument(bool executeSuccess) =>
+        _cph.SetArgument("ExecuteSuccess", executeSuccess);
+}
+
+public class ActionContext(Dictionary<string, object> args, IInlineInvokeProxy cph)
+{
+    private Lazy<TwitchUserInfo> _caller;
+
+    public Dictionary<string, object> SbArgs { get; } = new Dictionary<string, object>(args);
+    public EventType EventType { get; } = cph.GetEventType();
+
+    public TwitchUserInfo Broadcaster => cph.GetBroadcaster();
+    public TwitchUserInfo Caller => (_caller ??= new(() => GetUserFromArg<TwitchUserInfo>())).Value;
+
+    public T GetUserFromArg<T>(string argName = "user", T defaultValue = null)
+        where T : BaseUserInfo => SbArgs.GetUserFromArg(cph, argName, defaultValue);
+
+    public T Get<T>(string key, T defaultValue = default) => SbArgs.Get(key, defaultValue);
+
+    public bool TryGet<T>(string key, out T value) => SbArgs.TryGet(key, out value);
+
+    public T GetUser<T>(string userLogin)
+        where T : BaseUserInfo => cph.GetUser<T>(userLogin);
+
+    public void LogArgs(
+        string label = "Action started with",
+        [CallerMemberName] string methodName = null,
+        [CallerLineNumber] int lineNumber = 0
+    ) =>
+        Logger.LogObject(
+            new { EventType = EventType.ToString(), Caller = Caller?.UserLogin ?? "<null>" },
+            label,
+            methodName: methodName,
+            lineNumber: lineNumber
+        );
 }
 
 public static class InlineInvokeProxyExtensions
 {
     private const string DateTimeFormat = "yyyy-MM-dd hh:mm:ss.fff tt zzz";
+
+    private static TwitchUserInfo _broadcaster;
+
+    public static T GetUser<T>(this IInlineInvokeProxy cph, string lookupString)
+        where T : BaseUserInfo =>
+        !string.IsNullOrWhiteSpace(lookupString)
+            ? (
+                typeof(T) == typeof(TwitchUserInfoEx)
+                    ? cph.TwitchGetExtendedUserInfoByLogin(lookupString)
+                    : cph.TwitchGetUserInfoByLogin(lookupString)
+            ) as T
+            : null;
+
+    public static TwitchUserInfo GetBroadcaster(this IInlineInvokeProxy cph) =>
+        _broadcaster ??= cph.TwitchGetBroadcaster();
 
     public static DateTime GetDateTimeGlobalVar(
         this IInlineInvokeProxy cph,
@@ -429,24 +493,6 @@ public static class InlineInvokeProxyExtensions
         cph.GroupExists(groupName) == groupExists
         || (groupExists ? cph.AddGroup(groupName) : cph.DeleteGroup(groupName));
 
-    public static void HandleNullLoggerOnInit(
-        this IInlineInvokeProxy cph,
-        Exception ex,
-        string loggerName,
-        string actionName,
-        [CallerMemberName] string callerName = null
-    )
-    {
-        var aggEx = new AggregateException(
-            ex,
-            new ArgumentNullException(loggerName, $"{loggerName} is null.")
-        );
-
-        cph.LogError(
-            $"[{actionName}] [{callerName ?? "Unknown Method"}] {aggEx.GetFormattedExceptionMessage()}"
-        );
-    }
-
     private static bool TryParseDateTime(
         this string value,
         out DateTime result,
@@ -469,10 +515,9 @@ public static class InlineInvokeProxyExtensions
 public static class BaseUserInfoExtensions
 {
     public static string GetFormattedDisplayName(this BaseUserInfo user) =>
-        string.Concat(
-            $"@{user.UserName}",
-            user.HasLocalizedDisplayName() ? $" ({user.UserLogin})" : string.Empty
-        );
+        user.HasLocalizedDisplayName()
+            ? $"@{user.UserLogin} ({user.UserName})"
+            : $"@{user.UserName}";
 
     public static bool HasLocalizedDisplayName(this BaseUserInfo user) =>
         !string.Equals(user.UserName, user.UserLogin, StringComparison.OrdinalIgnoreCase);
@@ -480,69 +525,95 @@ public static class BaseUserInfoExtensions
 
 public static class DictionaryExtensions
 {
-    public static T GetArgOrDefault<T>(
+    public static T GetUserFromArg<T>(
         this IDictionary<string, object> sbArgs,
-        string argName,
-        T defaultValue = default
-    ) => sbArgs.TryGetArg(argName, out T value) ? value : defaultValue;
-
-    public static bool TryGetArg<T>(
-        this IDictionary<string, object> sbArgs,
-        string argName,
-        out T value
+        IInlineInvokeProxy cph,
+        string argName = "user",
+        T defaultValue = null
     )
+        where T : BaseUserInfo =>
+        sbArgs.TryGet(argName, out string argValue) ? cph.GetUser<T>(argValue) : defaultValue;
+
+    public static T Get<T>(
+        this IDictionary<string, object> sbArgs,
+        string key,
+        T defaultValue = default
+    ) => sbArgs.TryGet(key, out T value) ? value : defaultValue;
+
+    public static bool TryGet<T>(this IDictionary<string, object> sbArgs, string key, out T value)
     {
-        // Throw an exception if argName is null or empty
-        if (string.IsNullOrEmpty(argName))
+        // When argName is null or empty, throw an exception
+        if (string.IsNullOrEmpty(key))
         {
-            throw new ArgumentNullException(
-                nameof(argName),
-                $"{nameof(argName)} cannot be null or empty."
-            );
+            throw new ArgumentNullException(nameof(key), "Argument name cannot be null or empty.");
         }
 
         // When key is not present in Dictionary, return false
-        if (!sbArgs.TryGetValue(argName, out var untypedValue))
+        if (!sbArgs.TryGetValue(key, out var untypedValue))
         {
             value = default;
             return false;
         }
 
         // When T is an enum, attempt to parse as enum
-        if (typeof(T) is { IsEnum: true } type)
+        if (typeof(T).IsEnum)
         {
+            return TryParseEnum(untypedValue, out value);
+        }
+
+        // Try to convert the untyped value from object to T
+        return TryConvertValue(untypedValue, out value);
+    }
+
+    private static bool TryParseEnum<T>(object untypedValue, out T value)
+    {
+        try
+        {
+            value = (T)Enum.Parse(typeof(T), untypedValue.ToString(), ignoreCase: true);
+            return true;
+        }
+        catch
+        {
+            value = default;
+            return false;
+        }
+    }
+
+    private static bool TryConvertValue<T>(object untypedValue, out T value)
+    {
+        // Attempt to cast from object to T using pattern matching
+        if (untypedValue is T typedValue)
+        {
+            value = typedValue;
+            return PassesNullCheck(value);
+        }
+
+        // Attempt to convert from object to T
+        try
+        {
+            value = (T)Convert.ChangeType(untypedValue, typeof(T));
+            return PassesNullCheck(value);
+        }
+        catch
+        {
+            // Attempt to convert from string to T
             try
             {
-                value = (T)Enum.Parse(type, untypedValue.ToString(), true);
-                return true;
+                value = (T)Convert.ChangeType(untypedValue.ToString(), typeof(T));
+                return PassesNullCheck(value);
             }
+            // Failed to cast/convert
             catch
             {
                 value = default;
                 return false;
             }
         }
-
-        // Attempt to cast from object to T using pattern matching
-        if (untypedValue is T typedValue)
-        {
-            value = typedValue;
-            return value is not null
-                && (typeof(T) != typeof(string) || !string.IsNullOrEmpty(value.ToString()));
-        }
-
-        // Attempt to convert from object to T
-        if (Convert.ChangeType(untypedValue.ToString(), typeof(T)) is T convertedValue)
-        {
-            value = convertedValue;
-            return value is not null
-                && (typeof(T) != typeof(string) || !string.IsNullOrEmpty(value.ToString()));
-        }
-
-        // Failed to cast/convert
-        value = default;
-        return false;
     }
+
+    private static bool PassesNullCheck<T>(T value) =>
+        value is not null
+        && (typeof(T) != typeof(string) || !string.IsNullOrEmpty(value.ToString()));
 }
 
 public static class TimeSpanExtensions

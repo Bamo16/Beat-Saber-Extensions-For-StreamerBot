@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Specialized;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Web;
 using BeatSaberExtensions.Enums;
+using BeatSaberExtensions.Extensions.UriExtensions;
 using BeatSaberExtensions.Utility.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -134,13 +136,11 @@ public abstract class BaseHttpClient(
                 typeof(T) == typeof(string)
                     ? (T)(object)value
                     : JsonConvert.DeserializeObject<T>(value, _jsonSerializerSettings);
-
             return true;
         }
         catch
         {
             result = default;
-
             return false;
         }
     }
@@ -159,18 +159,8 @@ public abstract class BaseHttpClient(
                 Scheme = baseUri.Scheme,
                 Host = baseUri.Host,
                 Port = baseUri.Port,
-                Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/{relativePath.Trim('/')}",
-                Query = BuildQueryString(baseUri, queryParams),
+                Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/{relativePath.TrimStart('/')}",
+                Query = baseUri.BuildQuery(queryParams).ToString(),
             }.Uri,
         };
-
-    private static string BuildQueryString(Uri baseUri, NameValueCollection queryParams)
-    {
-        var query = HttpUtility.ParseQueryString(baseUri.Query);
-
-        foreach (var key in queryParams?.AllKeys ?? [])
-            query[key] = queryParams[key];
-
-        return query.ToString();
-    }
 }
