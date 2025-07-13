@@ -141,24 +141,12 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
         return true;
     }
 
-    private bool HandleAddUserToGroupsCommand(ActionContext context)
-    {
-        var user = context.Caller;
-
-        if (
-            CPH.EnsureGroupMembershipForUser(user, AllKnownUsersGroup, true)
-            && (
-                !user.HasLocalizedDisplayName()
-                || CPH.EnsureGroupMembershipForUser(user, LocalizedDisplayUsersGroup, true)
-            )
-        )
-        {
-            return true;
-        }
-
-        Logger.LogError($"Failed to add user to groups: {user.GetFormattedDisplayName()}.");
-        return false;
-    }
+    private bool HandleAddUserToGroupsCommand(ActionContext context) =>
+        CPH.EnsureGroupMembershipForUser(context.Caller, AllKnownUsersGroup, true)
+        && (
+            !context.Caller.HasLocalizedDisplayName()
+            || CPH.EnsureGroupMembershipForUser(context.Caller, LocalizedDisplayUsersGroup, true)
+        );
 
     private void InitializeGroups()
     {
@@ -378,19 +366,13 @@ public static class Logger
 
 public class ActionContext(Dictionary<string, object> args, IInlineInvokeProxy cph)
 {
-    private Lazy<string> _commandId;
-    private Lazy<string> _command;
     private Lazy<TwitchUserInfo> _caller;
-    private Lazy<string> _rawInput;
 
     public Dictionary<string, object> SbArgs { get; } = new Dictionary<string, object>(args);
     public EventType EventType { get; } = cph.GetEventType();
 
     public TwitchUserInfo Broadcaster => cph.GetBroadcaster();
-    public string CommandId => (_commandId ??= new(() => Get<string>("commandId"))).Value;
-    public string Command => (_command ??= new(() => Get<string>("command"))).Value;
     public TwitchUserInfo Caller => (_caller ??= new(() => GetUserFromArg<TwitchUserInfo>())).Value;
-    public string RawInput => (_rawInput ??= new(() => Get<string>("rawInput"))).Value;
 
     public T GetUserFromArg<T>(string argName = "user", T defaultValue = null)
         where T : BaseUserInfo => SbArgs.GetUserFromArg(cph, argName, defaultValue);
@@ -408,14 +390,7 @@ public class ActionContext(Dictionary<string, object> args, IInlineInvokeProxy c
         [CallerLineNumber] int lineNumber = 0
     ) =>
         Logger.LogObject(
-            new
-            {
-                EventType = EventType.ToString(),
-                CommandId = CommandId ?? "<null>",
-                Command = Command ?? "<null>",
-                RawInput = RawInput ?? "<null>",
-                Caller = Caller?.UserLogin ?? "<null>",
-            },
+            new { EventType = EventType.ToString(), Caller = Caller?.UserLogin ?? "<null>" },
             label,
             methodName: methodName,
             lineNumber: lineNumber

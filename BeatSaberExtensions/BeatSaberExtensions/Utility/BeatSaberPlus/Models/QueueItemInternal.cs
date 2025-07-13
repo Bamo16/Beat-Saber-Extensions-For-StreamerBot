@@ -1,4 +1,5 @@
 using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
+using BeatSaberExtensions.Extensions.FormattableExtensions;
 using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 using Newtonsoft.Json;
 using Streamer.bot.Plugin.Interface.Model;
@@ -25,10 +26,10 @@ public class QueueItem
         && user is { UserId: { } targetUserId }
         && userId == targetUserId;
 
-    public string ToFriendlyString(bool withPosition, bool withUserName) =>
+    public string ToFriendlyString(bool withPosition, bool withUser) =>
         string.Concat(
-            withPosition ? $"{Position} " : string.Empty,
-            withUserName ? $"{User.GetFormattedDisplayName()} " : string.Empty,
+            withPosition ? $"{Position.ToOrdinal()} " : string.Empty,
+            withUser ? $"{User.GetFormattedDisplayName()} " : string.Empty,
             Beatmap is { DisplayString: { } displayString } ? displayString : Id
         );
 }

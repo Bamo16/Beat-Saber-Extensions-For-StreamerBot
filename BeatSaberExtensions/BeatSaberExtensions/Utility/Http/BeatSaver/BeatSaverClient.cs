@@ -11,17 +11,19 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
 {
     private const string BeatSaverBaseUri = "https://api.beatsaver.com/";
 
-    private static readonly TimeSpan _cacheEvictionInterval = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan _cacheEvictionInterval = TimeSpan.FromMinutes(5);
 
     private readonly object _lock = new object();
-    private readonly Dictionary<string, Beatmap> _cachedBeatmaps = [];
+    private readonly Dictionary<string, Beatmap> _cachedBeatmaps = new Dictionary<string, Beatmap>(
+        StringComparer.OrdinalIgnoreCase
+    );
 
     private DateTime _lastCacheEvictionCheck = DateTime.MinValue;
 
     private bool ShouldPerformCacheEviction =>
         _lastCacheEvictionCheck + _cacheEvictionInterval <= DateTime.UtcNow;
 
-    public Beatmap GetBeatmap(string id) => GetBeatmaps([id]).Values.SingleOrDefault();
+    public Beatmap GetBeatmap(string id) => GetBeatmaps([id]).Values.DefaultIfEmpty(null).Single();
 
     public Dictionary<string, Beatmap> GetBeatmaps(IEnumerable<string> ids)
     {
@@ -47,7 +49,13 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
         }
 
         var beatmaps = idsToFetch is { Count: 1 }
-            ? [SendHttpRequest<Beatmap>(relativePath: $"/maps/id/{idsToFetch.Single()}")]
+            ? SendHttpRequest<Beatmap>(
+                relativePath: $"/maps/id/{idsToFetch.Single()}",
+                defaultValue: null
+            )
+                is { } singleBeatmap
+                ? [singleBeatmap]
+                : []
             : GetMultiBeatmapRelativePath(idsToFetch)
                 .Select(relativePath =>
                     SendHttpRequest<Dictionary<string, Beatmap>>(
@@ -72,32 +80,22 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
         EvictExpiredBeatmaps();
 
         var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase).Select(id => id.ToLower());
-
         var cachedBeatmaps = new List<Beatmap>();
         var idsToFetch = new List<string>();
 
         foreach (var id in distinctIds)
         {
-            if (_cachedBeatmaps.TryGetValue(id, out var cachedBeatmap))
-            {
-                if (cachedBeatmap is { ShouldRefresh: false })
-                {
-                    cachedBeatmaps.Add(cachedBeatmap);
-                }
-                else
-                {
-                    _cachedBeatmaps.Remove(cachedBeatmap.Id);
-                    idsToFetch.Add(id);
-                }
-            }
+            if (IsCached(id, out var cached))
+                cachedBeatmaps.Add(cached);
             else
-            {
                 idsToFetch.Add(id);
-            }
         }
 
         return (cachedBeatmaps, idsToFetch);
     }
+
+    private bool IsCached(string id, out Beatmap beatmap) =>
+        _cachedBeatmaps.TryGetValue(id, out beatmap) && beatmap is { ShouldRefresh: false };
 
     private void EvictExpiredBeatmaps()
     {

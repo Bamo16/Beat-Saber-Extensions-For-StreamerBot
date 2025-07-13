@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 using BeatSaberExtensions.Utility.Http.BeatLeader;
@@ -42,6 +43,7 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
     public bool IsConfigured => !string.IsNullOrEmpty(GetBeatSaberRoot());
     public BeatSaverClient BeatSaverClient = new BeatSaverClient();
     public BeatLeaderClient BeatLeaderClient = new BeatLeaderClient();
+    public bool QueueState => GetQueueState();
     public DatabaseJson DatabaseJson => GetDatabaseJson();
     public ReadOnlyCollection<QueueItem> Queue => DatabaseJson.Queue;
     public string BeatLeaderId
@@ -50,7 +52,81 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
         set => cph.SetGlobalVar(GetGlobalVarName(), value);
     }
 
-    public bool GetQueueState() =>
+    public void SetBeatLeaderIdGlobal(string beatLeaderId) => BeatLeaderId = beatLeaderId;
+
+    public bool UserIsInRaidRequestors(BaseUserInfo user) =>
+        user is { UserId: { } userId }
+        && cph.UserIdInGroup(userId, Platform.Twitch, RaidRequestorGroupName);
+
+    public bool EnsureRaidRequestorsMembershipForUser(BaseUserInfo user, bool shouldBelongToGroup)
+    {
+        var logMessage = string.Format(
+            "{0} raider {1} to Raid Requestors group.",
+            shouldBelongToGroup ? "Adding" : "Removing",
+            user.GetFormattedDisplayName()
+        );
+
+        Logger.Log(logMessage);
+
+        return cph.EnsureGroupMembershipForUser(user, RaidRequestorGroupName, shouldBelongToGroup);
+    }
+
+    public string GetBeatmapId(string input) =>
+        _beatmapIdPattern.Match((input ?? string.Empty).ToLowerInvariant()).Groups["Id"]
+            is { Success: true, Value: { } value }
+            ? value
+            : null;
+
+    public bool ValidateBeatmapId(string id)
+    {
+        if (Remap(GetBeatmapId(id)) is not { } bsrId || string.IsNullOrEmpty(bsrId))
+        {
+            return LogInvalidReasonAndReturn(
+                "Failed to validate beatmap because the provided id was null or empty."
+            );
+        }
+
+        if (DatabaseJson.Blacklist.Contains(bsrId))
+        {
+            return LogInvalidReasonAndReturn(
+                $"Failed to validate beatmap id \"{bsrId}\" because it is on the blacklist."
+            );
+        }
+
+        if (DatabaseJson.History.Contains(bsrId))
+        {
+            return LogInvalidReasonAndReturn(
+                $"Failed to validate beatmap id \"{bsrId}\" because it was played recently."
+            );
+        }
+
+        if (BeatSaverClient.GetBeatmap(bsrId) is not { } beatmap)
+        {
+            return LogInvalidReasonAndReturn(
+                $"Failed to validate beatmap id \"{bsrId}\" because the beatmap could not be fetched from BeatSaver."
+            );
+        }
+
+        if (
+            beatmap is { Metadata.LevelAuthorName: { } author }
+            && DatabaseJson.BannedMappers.Contains(author)
+        )
+        {
+            return LogInvalidReasonAndReturn(
+                $"Failed to validate beatmap id \"{bsrId}\" because the mapper ({author}) is on the banned mappers list."
+            );
+        }
+
+        return true;
+    }
+
+    public void Dispose()
+    {
+        BeatSaverClient?.Dispose();
+        BeatLeaderClient?.Dispose();
+    }
+
+    private bool GetQueueState() =>
         (
             _queueState ??= new Cached<bool>(
                 () =>
@@ -63,58 +139,20 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             )
         ).Value;
 
-    public void SetBeatLeaderIdGlobal(string beatLeaderId) => BeatLeaderId = beatLeaderId;
-
-    public bool UserIsInRaidRequestors(BaseUserInfo user) =>
-        user is { UserId: { } userId }
-        && cph.UserIdInGroup(userId, Platform.Twitch, RaidRequestorGroupName);
-
-    public bool EnsureRaidRequestorsMembershipForUser(
-        BaseUserInfo user,
-        bool shouldBelongToGroup
-    ) => cph.EnsureGroupMembershipForUser(user, RaidRequestorGroupName, shouldBelongToGroup);
-
-    public string GetBeatmapId(string input) =>
-        _beatmapIdPattern.Match(input.ToLowerInvariant()).Groups["Id"]
-            is { Success: true, Value: { } value }
-            ? value
-            : null;
-
-    public bool ValidateBeatmapId(string id)
+    private string Remap(string id)
     {
-        var sanitzedId = GetBeatmapId(id) is { } validId ? Remap(validId) : null;
-
-        if (
-            // Invalid BSR ID
-            sanitzedId is null
-            // BSR ID is not blacklist
-            || DatabaseJson.Blacklist.Contains(sanitzedId)
-            // BSR ID was already requested recently
-            || DatabaseJson.History.Contains(sanitzedId)
-        )
+        if (id is null)
         {
-            return false;
+            return id;
         }
 
-        var beatmap = BeatSaverClient.GetBeatmap(sanitzedId);
-
-        // BSR ID belongs to banned mapper
-        if (DatabaseJson.BannedMappers.Contains(beatmap.Metadata.LevelAuthorName))
+        if (DatabaseJson.Remaps.TryGetValue(id, out var remap))
         {
-            return false;
+            return remap;
         }
 
-        return true;
+        return id;
     }
-
-    public void Dispose()
-    {
-        BeatSaverClient?.Dispose();
-        BeatLeaderClient?.Dispose();
-    }
-
-    private string Remap(string id) =>
-        DatabaseJson.Remaps.TryGetValue(id, out var remap) ? remap : id;
 
     private bool TryWaitForBeatLeaderId(
         out string beatLeaderId,
@@ -200,7 +238,9 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
     {
         if (!IsConfigured)
         {
-            Logger.LogError($"");
+            Logger.LogError(
+                $"Cannot fetch Beat Saber Plus file: \"{fileName}\" because the BeatSaberRoot global var is not configured."
+            );
 
             return null;
         }
@@ -211,10 +251,6 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             "BeatSaberPlus",
             "ChatRequest",
             fileName
-        );
-
-        Logger.Log(
-            $"Fetched Beat Saber Plus path for file: \"{fileName}\", full path: \"{bsPlusFilePath}\"."
         );
 
         return bsPlusFilePath;
@@ -236,7 +272,7 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             var item = internalData.Queue[i];
 
             item.Position = i + 1;
-            item.User = cph.GetUserInfo<BaseUserInfo>(item.UserLogin);
+            item.User = cph.GetUser<BaseUserInfo>(item.UserLogin);
 
             if (beatmaps.TryGetValue(internalData.Queue[i].Id, out var beatmap))
             {
@@ -324,4 +360,11 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
             : throw new InvalidOperationException(
                 $"Failed to get global var name from member name for member: {memberName}."
             );
+
+    private bool LogInvalidReasonAndReturn(string reason)
+    {
+        Logger.LogWarn(reason);
+
+        return false;
+    }
 }

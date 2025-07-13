@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Extensions.DictionaryExtensions;
+using BeatSaberExtensions.Utility.Arguments;
 using BeatSaberExtensions.Utility.Logging;
 
 namespace BeatSaberExtensions.Utility;
@@ -13,12 +14,13 @@ public static class UserConfig
 {
     public const string GithubUrl =
         "https://github.com/Bamo16/Beat-Saber-Extensions-For-StreamerBot";
+    public const string BumpEventName = "BeatSaberExtensionsBump";
 
     private static readonly object _lock = new object();
     private static readonly ConcurrentDictionary<string, object> _configValues = [];
     private static readonly List<(string Name, object Value)> _changes = [];
 
-    public static readonly Version Version = new Version(0, 1, 1);
+    public static readonly Version Version = new Version(0, 1, 2);
 
     private static bool _configValuesInitialized;
     private static Dictionary<string, object> _sbArgs;
@@ -120,7 +122,7 @@ public static class UserConfig
 
     #region Song Bump Configuration Settings
 
-    public static int BumpValidationAttempts => GetConfigValue(2);
+    public static int BumpValidationAttempts => GetConfigValue(3);
     public static int BumpValidationDelayMs => GetConfigValue(4000);
     public static bool BumpNextRequestFromRaider => GetConfigValue(false);
 
@@ -137,11 +139,11 @@ public static class UserConfig
 
     #endregion
 
-    public static void SetConfigValues(Dictionary<string, object> sbArgs)
+    public static void SetConfigValues(ActionContext context)
     {
         lock (_lock)
         {
-            _sbArgs = new Dictionary<string, object>(sbArgs);
+            _sbArgs = context.SbArgs;
             _changes.Clear();
 
             SetConfigValue<string>(nameof(NotConfiguredMessage));
@@ -204,11 +206,11 @@ public static class UserConfig
     private static T GetConfigValue<T>(
         T defaultValue = default,
         [CallerMemberName] string memberName = null
-    ) => _configValues.TryGetArg(memberName, out T value) ? value : defaultValue;
+    ) => _configValues.TryGet(memberName, out T value) ? value : defaultValue;
 
     private static void SetConfigValue<T>(string memberName)
     {
-        var argExists = _sbArgs.TryGetArg(memberName, out T newValue);
+        var argExists = _sbArgs.TryGet(memberName, out T newValue);
 
         if (!_configValuesInitialized && !argExists)
         {
@@ -223,7 +225,7 @@ public static class UserConfig
             argExists
             && (
                 !_configValuesInitialized
-                || !_configValues.TryGetArg(memberName, out T currentValue)
+                || !_configValues.TryGet(memberName, out T currentValue)
                 || !currentValue.Equals(newValue)
             )
         )

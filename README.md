@@ -8,6 +8,7 @@
 * `!bsrmyqueue` / `!bsrwhen` – Check the queue positions of your requests or get an ETA
 * `!bsrqueue` – Show the long form song request queue (moderator only)
 * `!bsrbump` – Bump a request (with error validation and optional auto-bump for raiders)
+* Easily trigger song bump via any other action which populates a `user` argument
 * Configurable options for displaying queue entries (BSRID-only or full beatmap info chosen dynamically based on configuration criterea)
 
 ## Table Of Contents
@@ -19,6 +20,7 @@
 * [🧵 Commands](#-commands)
   * [🎮 General Chat Commands](#-general-chat-commands)
   * [🛡️ Moderator-Only Commands](#️-moderator-only-commands)
+* [⚡  Triggering Song Bumps From Your Own Actions](#triggering-song-bumps-from-your-own-actions)
 * [📦 User-Configurable Messages & Settings](#-user-configurable-messages--settings)
 * [📝 Logging](#-logging)
 * [🧪 Building/Modifying](#-buildingmodifying)
@@ -26,6 +28,8 @@
 * [🧯 Troubleshooting](#troubleshooting)
 
 ## 📜 Changelog
+
+### [0.1.2] - 2025-07-12
 
 ### [0.1.1] - 2025-06-06
 
@@ -113,6 +117,18 @@ For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`)
 
 ![bsrextversion example 1](images/bsrextversion1.png)
 
+## Triggering Song Bumps From Your Own Actions
+
+You can trigger a song bump from any of your own StreamerBot actions. The only requirement is that your action must populate the `user` argument with a valid username. Any StreamerBot trigger related to user activiaty (Channel Reward Redemption for example) will always populate this argument automatically, so for most trigger types, you shouldn't need to configure arguments at all.
+
+To trigger a raid bump for your action, simply add an `Execute C# Method` sub-action to your action. This is all that's needed to have your action trigger a song bump for the user who triggered your action (e.g. for a Channel Reward Redemption trigger, it willbe the user who used the redeem).
+
+If the user has multiple requests in the queue, the most recently added request will be bumped. If you'd like some sort of different bump behavior besides most recently added (like bumping a specific beatmap ID), I'd be happy to add some options if you let me know via a GitHub issue (or pester me when I'm live at <https://www.twitch.tv/bamo16>).
+
+![song bump trigger example 1](images/songbumptrigger1.png)
+
+![song bump trigger example 2](images/songbumptrigger2.png)
+
 ## 📦 User-Configurable Messages & Settings
 
 ### Response Messages
@@ -152,7 +168,7 @@ Argument Name                | Description                                      
 
 Argument Name                     | Description                                                                                 | Default Value
 --------------------------------- | ------------------------------------------------------------------------------------------- | -------------
-`BumpValidationAttempts`          | How many times to attempt to validate if a song bump was processed.                         | `2`
+`BumpValidationAttempts`          | How many times to attempt to validate if a song bump was processed.                         | `3`
 `BumpValidationDelayMs`           | Delay (in ms) between bump validation attempts.                                             | `4000`
 `BumpNextRequestFromRaider`       | When set to `true`, the first request from a raider will be bumped to the top of the queue. | `false`
 `ClearRaidRequestorsAfterMinutes` | When `BumpNextRequestFromRaider` is `true`, this setting determines how long a raid requestor will be remembered (in minutes) if the stream goes offline. | `30`
