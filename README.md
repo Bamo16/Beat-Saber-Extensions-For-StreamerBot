@@ -8,8 +8,8 @@
 * `!bsrmyqueue` / `!bsrwhen` – Check the queue positions of your requests or get an ETA
 * `!bsrqueue` – Show the long form song request queue (moderator only)
 * `!bsrbump` – Bump a request (with error validation and optional auto-bump for raiders)
-* Easily trigger song bump via any other action which populates a `user` argument
-* Configurable options for displaying queue entries (BSRID-only or full beatmap info chosen dynamically based on configuration criterea)
+* Easily trigger song bump via from other StreamerBot actions (see: [⚡  Triggering Song Bumps From Your Own Actions](#triggering-song-bumps-from-your-own-actions))
+* Configurable options for displaying queue entries (BSR Id-only or full beatmap info chosen dynamically based on configuration criterea)
 
 ## Table Of Contents
 
@@ -30,6 +30,12 @@
 ## 📜 Changelog
 
 ### [0.1.2] - 2025-07-12
+
+* Fixed various edge-cases related to the automatic raid request bump functionality
+  * Fix for StreamerBot edge case where certain BSR Ids from raid request command input being parsed incorrectly
+  * Added check for if the request is already in the queue for a different user
+  * Added special handling for when the queue is closed using `!att`
+* Added the ability to trigger song bumps from any StreamerBot action
 
 ### [0.1.1] - 2025-06-06
 
