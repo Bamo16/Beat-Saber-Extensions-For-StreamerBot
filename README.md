@@ -4,30 +4,42 @@
 
 ## 🚀 Features
 
-* `!bsrlookup` – See if a BSR ID has been played and view the streamer’s score (via BeatLeader API)
 * `!bsrmyqueue` / `!bsrwhen` – Check the queue positions of your requests or get an ETA
-* `!bsrqueue` – Show the long form song request queue (moderator only)
+* `!bsrqueue` – Show the long form song request queue (moderator only when used in Twitch chat)
 * `!bsrbump` – Bump a request (with error validation and optional auto-bump for raiders)
-* Easily trigger song bump via from other StreamerBot actions (see: [⚡  Triggering Song Bumps From Your Own Actions](#triggering-song-bumps-from-your-own-actions))
+* `!bsrlookup` – See if a BSR ID has been played and view the streamer’s score via the BeatLeader API (work in progress)
+* Commands can be sent via Twitch chat, or whisper to the bot account (see: [📩 Responses via Bot Whispers](#-responses-via-bot-whispers))
+* Easily trigger song bump via from other StreamerBot actions (see: [⚡ Triggering Song Bumps From Your Own Actions](#-triggering-song-bumps-from-your-own-actions))
 * Configurable options for displaying queue entries (BSR Id-only or full beatmap info chosen dynamically based on configuration criterea)
 
 ## Table Of Contents
 
 * [📜 Changelog](#-changelog)
+* [🚀 Features](#-features)
 * [🛠️ Setup](#️-setup)
   * [📋 Requirements](#-requirements)
   * [📥 Importing Into StreamerBot](#-importing-into-streamerbot)
 * [🧵 Commands](#-commands)
   * [🎮 General Chat Commands](#-general-chat-commands)
   * [🛡️ Moderator-Only Commands](#️-moderator-only-commands)
-* [⚡  Triggering Song Bumps From Your Own Actions](#triggering-song-bumps-from-your-own-actions)
-* [📦 User-Configurable Messages & Settings](#-user-configurable-messages--settings)
+* [📩 Responses via Bot Whispers](#-responses-via-bot-whispers)
+* [⚡ Triggering Song Bumps From Your Own Actions](#-triggering-song-bumps-from-your-own-actions)
+* [📦 User-Configurable Messages \& Settings](#-user-configurable-messages--settings)
 * [📝 Logging](#-logging)
 * [🧪 Building/Modifying](#-buildingmodifying)
-  * [💻 Editing In External IDEs](#-editing-in-external-ides)
-* [🧯 Troubleshooting](#troubleshooting)
+* [🔧 Troubleshooting](#-troubleshooting)
 
 ## 📜 Changelog
+
+### [0.1.3] - 2025-09-09
+
+* Updated for StreamerBot 1.0.0 release
+* Improved the handling of DateTimes stored in global variables
+* Fixed bug where raid requests were not bumped due to race condition
+* Added new command `!bsrlast` for getting a link to the last played beatmap after the player has already started playing a new beatmap
+* Added new configuration setting: `AllowBotWhispers`
+* Improved edge-case handling for raid requests and added a fallback to `!att` when a raid request is rejected due to the queue being closed or any other reason
+* When the bot adds a beatmap using `!att`, it will now be added on behalf of the actual requestor so the user's name is shown in the queue instead of the bot's name
 
 ### [0.1.2] - 2025-07-12
 
@@ -43,17 +55,6 @@
 * Added configurable `DefaultQueueItemCount`
 * Refactored Logger
 
-> [!Note]
-> I have identified an issue where the BeatLeader API will sometimes return `401 Unauthorized` causing `!bsrlookup` to fail and I'm currently working on a fix
-
-### [0.1.0] - 2025-06-01
-
-* Added user-configurable values via StreamerBot arguments
-* `!bsrlookup`: Now properly locates the most recent score rather than just the user's top/pinned score for a beatmap
-* Additional edge case validation during song bumps with appropriate error messages
-* Automatic bumping for song requests from raiders (*Optional*, can be enabled via user-configurable setting).
-* New commands `!bsrenable`/`!bsrdisable`: Allows the broadcaster or a moderator to enable or disable all non-moderator commands provided by this module (for example, if the streamer is not currently playing Beat Saber)
-
 ## 🛠️ Setup
 
 ### 📋 Requirements
@@ -66,16 +67,13 @@
 
 * Copy StreamerBot Import String from [StreamerBot Import File](Beat%20Saber%20Extensions%20For%20StreamerBot.sb) and paste into the `Import` menu in StreamerBot (or download the file and click+drag it into the import window).
 * Commands will be imported in a disabled state, so you will need to navigate to the `Commands` tab and enable all of the commands. They can all be found in the `Chat Commands - Beat Saber Extensions` subgroup in the commands tab.
-* Check the [Troubleshooting](#troubleshooting) section if you run into any issues.
+* Check the [🔧 Troubleshooting](#-troubleshooting) section if you run into any issues.
 
 * Notes:
   * **Beat Saber Extensions** will not initially know the location of your Beat Saber install, but it will automatically detect it the first time that one of the commands gets used while Beat Saber is running. This setting is stored in a global variable, and is updated automatically when the path associated with the currently running `Beat Saber.exe` process is detected to have changed.
   * **Beat Saber Extensions** will not initially know the streamer's BeatLeader ID. The first time the `!bsrlookup` command is used, it will attempt to determine the streamer's BeatLeader ID by triggering the `!bsprofile` BeatSaberPlus command.
 
 ## 🧵 Commands
-
-> [!Note]
-> Typically, when autocompleting the username for a chatter with a localized display name (Japanese/Chinese/Russian/etc.), most chat clients will autocomplete the user's display name. StreamerBot cannot identify users by display name alone, but **Beat Saber Extensions** automatically identifies users with special display names and keeps track of them using StreamerBot user groups so that localized display names can be used as input for commands.
 
 For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`), you can provide either a username or a display name. Names may be provided with or without the `@` prefix.
 
@@ -93,37 +91,52 @@ For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`)
 
 ![bsrwhen example 2](images/bsrwhen2.png)
 
-### `!bsrlookup <bsrid>`
+#### `!bsrlast`
 
-![bsrwhen example 2](images/bsrlookup1.png)
+#### `!bsrqueue [count]`
 
-### 🛡️ Moderator-Only Commands
-
-### `!bsrbump <bsrid|user>`
-
-![bsrbump example 1](images/bsrbump1.png)
-
-![bsrbump example 2](images/bsrbump2.png)
-
-### `!bsrqueue [count]`
+> [!NOTE]
+> The `bsrqueue` command can be used via bot whispers by any user (see: [📩 Responses via Bot Whispers](#-responses-via-bot-whispers)), or in Twitch chat by moderators only.
 
 ![bsrqueue example 1](images/bsrqueue1.png)
 
 ![bsrqueue example 2](images/bsrqueue2.png)
 
-### `!bsrdisable`
+#### `!bsrlookup <bsrid>`
+
+![bsrwhen example 2](images/bsrlookup1.png)
+
+### 🛡️ Moderator-Only Commands
+
+#### `!bsrbump <bsrid|user>`
+
+![bsrbump example 1](images/bsrbump1.png)
+
+![bsrbump example 2](images/bsrbump2.png)
+
+#### `!bsrdisable`
 
 ![bsrdisable example 1](images/bsrdisable1.png)
 
-### `!bsrenable`
+#### `!bsrenable`
 
 ![bsrenable example 1](images/bsrenable1.png)
 
-### `!bsrextversion`
+#### `!bsrextversion`
 
 ![bsrextversion example 1](images/bsrextversion1.png)
 
-## Triggering Song Bumps From Your Own Actions
+> [!Note]
+> Typically, when autocompleting the username for a chatter with a localized display name (Japanese/Chinese/Russian/etc.), most chat clients will autocomplete the user's display name. StreamerBot cannot identify users by display name alone, but **Beat Saber Extensions** automatically identifies users with special display names and keeps track of them using StreamerBot user groups so that localized display names can be used as input for commands.
+
+## 📩 Responses via Bot Whispers
+
+> [!IMPORTANT]
+> Please note that Twitch only allows accounts with verified phone numbers to send whispers. There are also a number of other limitations which you can read about on this StreamerBot documentation page: [Whispers | Streamer.bot Docs](https://docs.streamer.bot/api/triggers/twitch/chat/whispers/ "Whispers | Streamer.bot Docs").
+
+The bot will only respond via whisper if `AllowBotWhispers` is set to `True` in [General Configuration Setttings](#general-configuration-setttings) (this is the default) and the user sent a valid command to the bot via Twitch whisper. **Beat Saber Extensions** will *never* send unsolicited whispers to any user.
+
+## ⚡ Triggering Song Bumps From Your Own Actions
 
 You can trigger a song bump from any of your own StreamerBot actions. The only requirement is that your action must populate the `user` argument with a valid username. Any StreamerBot trigger related to user activiaty (Channel Reward Redemption for example) will always populate this argument automatically, so for most trigger types, you shouldn't need to configure arguments at all.
 
@@ -178,13 +191,14 @@ Argument Name                     | Description                                 
 `BumpValidationDelayMs`           | Delay (in ms) between bump validation attempts.                                             | `4000`
 `BumpNextRequestFromRaider`       | When set to `true`, the first request from a raider will be bumped to the top of the queue. | `false`
 `ClearRaidRequestorsAfterMinutes` | When `BumpNextRequestFromRaider` is `true`, this setting determines how long a raid requestor will be remembered (in minutes) if the stream goes offline. | `30`
-
+`KeeoRecentErrorCount`            || `null`
 
 ### General Configuration Setttings
 
 Argument Name                 | Description                                                           | Default Value
 ----------------------------- | --------------------------------------------------------------------- | -------------
-`UsernameDisplayMode`         | Specifies how usernames are shown. `UserLoginOnly`: "mecha_bamo", `DisplayNameOnlu`: "爪モ匚卄丹_乃丹爪口", or `Dynamic` "mecha_bamo (爪モ匚卄丹_乃丹爪口)". | `UserLoginOnly`
+`AllowBotWhispers`            | Controls if the bot should also respond to commands via whispers (allows !bsrqueue in whispers for non-mods). | `True`
+`UsernameDisplayMode`         | Specifies how usernames are shown. `UserLoginOnly`: "mecha_bamo", `DisplayNameOnly`: "爪モ匚卄丹_乃丹爪口", or `Dynamic` "mecha_bamo (爪モ匚卄丹_乃丹爪口)". | `UserLoginOnly`
 `DefaultQueueItemCount`       | Default number of items that can be shown by the `!bsrqueue` command. | `5`
 `MaximumQueueItemCount`       | Maximum number of items that can be shown by the `!bsrqueue` command. | `10`
 `BeatmapCacheDurationMinutes` | Duration (minutes) to cache beatmap data.                             | `30`
@@ -211,15 +225,12 @@ You can find log messages related to **Beat Saber Extensions** in the StreamerBo
 
 ### 💻 Editing In External IDEs
 
-If you'd like to edit this code in some way, you'll likely want to load it in your IDE of choice.
+If you'd like to edit this code in some way, you'll likely want to open it in your IDE of choice.
 
 🧵 **Recommended reading:**  
 [Writing Streamer.bot C# code with linting in Visual Studio Code](https://gist.github.com/rondhi/aa5e8c3b7d1277d1c93dd7f486b596fe "Github Gist by rondhi")
 
-The project's `.csproj` files are set up to load the required StreamerBot assemblies (like `Streamer.bot.Plugin.Interface`), but they won’t resolve unless you specify the path. They will attempt to use a property called `DotnetAssembliesPath` to find these files. To define a value for `DotnetAssembliesPath`, create a`Directory.Build.props` file in both:
-
-* `/BeatSaberExtensions/BeatSaberExtensions`
-* `/BeatSaberExtensions/GroupManager`
+The `.csproj` file is set up to load the required StreamerBot assemblies (like `Streamer.bot.Plugin.Interface`), but they won’t resolve unless you specify the path. It will attempt to use a property called `DotnetAssembliesPath` to find these files. To define a value for `DotnetAssembliesPath`, create a`Directory.Build.props` file in `/BeatSaberExtensions/BeatSaberExtensions`.
 
 **Example:**
 
@@ -234,17 +245,11 @@ The project's `.csproj` files are set up to load the required StreamerBot assemb
 
 Note: The code contained in the **Beat Saber Extensions** Execute C# Code subaction is spread across multiple project files which need to be merged into one to paste into StreamerBot. I am unfortunatelly not ready to share the build tool which performs this task, but I will try to share it in the future.
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
-* If StreamerBot shows compiler errors for one or both Execute C# SubActions
-  * This is likely due to missing references. StreamerBot should load these automatically on import, but if it does not for some reason, here are the needed references for each action. You can add each one my opening the Execute C# SubAction and navigating to the References tab:
-    * **Beat Saber Extensions**
-      * `mscorelib.dll`
-      * `System.dll`
-      * `System.Core.dll`
-      * `System.Net.Http.dll`
-      * `System.Web.dll`
-    * **Group Manager**
-      * `mscorelib.dll`
-      * `System.dll`
-      * `System.Core.dll`
+* If StreamerBot shows compiler errors for the Execute C# SubAction, this is likely due to missing references. StreamerBot should load these automatically on import, but if it does not for some reason, here are the needed references for each action. You can add each one my opening the Execute C# SubAction and navigating to the References tab:
+  * `mscorelib.dll`
+  * `System.dll`
+  * `System.Core.dll`
+  * `System.Net.Http.dll`
+  * `System.Web.dll`

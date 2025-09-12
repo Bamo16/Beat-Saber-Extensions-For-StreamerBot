@@ -4,21 +4,26 @@ using BeatSaberExtensions.Utility.Arguments;
 using BeatSaberExtensions.Utility.Logging;
 using Streamer.bot.Plugin.Interface;
 
-public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting code into streamer.bot
+public class CPHInline
+#if OUTSIDE_STREAMERBOT
+    : CPHInlineBase
+#endif
 {
     private const string ActionName = "Beat Saber Extensions";
 
-    private static readonly Predicate<ActionContext> _noOpPredicate = (context) =>
-        context.IsBroadcaster(context.Caller)
-        && context.CommandId is UserConfig.RaidRequestCommandId;
-
+    private GroupManager _groupManager;
     private StreamerBotEventHandler _sbEventHandler;
 
     public void Init()
     {
         try
         {
-            Logger.Init(CPH, ActionName, _noOpPredicate);
+            Logger.Init(CPH, ActionName);
+            UserConfig.InitializeUserConfig(CPH);
+
+            _groupManager = new GroupManager(CPH);
+            _groupManager.InitializeGroups();
+
             _sbEventHandler = new StreamerBotEventHandler(CPH);
 
             Logger.Log("Completed successfully.");
@@ -31,8 +36,14 @@ public class CPHInline : CPHInlineBase // Remove " : CPHInlineBase" when pasting
 
     public void Dispose() => _sbEventHandler?.Dispose();
 
-    public bool Execute() => _sbEventHandler.HandleStreamerBotAction(args);
+    // Default entrypoint
+    public bool Execute() => _sbEventHandler.HandleStreamerBotAction(new ActionContext(CPH, args));
 
+    // Execute C# Method entrypoint for custom song bump for user
     public bool BumpRequestForUser() =>
-        _sbEventHandler.HandleStreamerBotAction(args, fromExecuteMethod: true);
+        _sbEventHandler.HandleStreamerBotAction(new ActionContext(CPH, args), isCustomBump: true);
+
+    // Execute C# Method entrypoint for group manager triggers
+    public bool HandleGroupManagerTrigger() =>
+        _groupManager.HandleGroupManagerAction(new ActionContext(CPH, args));
 }

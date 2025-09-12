@@ -7,32 +7,25 @@ namespace BeatSaberExtensions.Extensions.TimeSpanExtensions;
 
 public static class TimeSpanExtensions
 {
-    public static string ToFriendlyString(
-        this TimeSpan timeSpan,
-        TimeUnit precision = TimeUnit.Second
-    ) =>
-        new (TimeUnit Unit, int Value)[]
+    public static string Format(this TimeSpan timeSpan, TimeUnit precision = TimeUnit.Second)
+    {
+        var parts = new (TimeUnit Unit, int Value)[]
         {
             (TimeUnit.Day, (int)timeSpan.TotalDays),
             (TimeUnit.Hour, timeSpan.Hours),
             (TimeUnit.Minute, timeSpan.Minutes),
             (TimeUnit.Second, timeSpan.Seconds),
         }
-            .TakeWhile(part => part.Unit >= precision)
-            .Where(part => part is { Value: not 0 })
-            .Select(part => part.Unit.Pluralize(part.Value))
-            .ToList() switch
-        {
-            { Count: 0 } => precision.Pluralize(0),
-            { Count: 1 } parts => parts[0],
-            { Count: 2 } parts => $"{parts[0]} and {parts[1]}",
-            { Count: var count } parts => string.Concat(
-                string.Join(", ", parts.Take(count - 1)),
-                ", and ",
-                parts.Last()
-            ),
-        };
+            .Where(p => p is { Value: not 0 } && p.Unit <= precision)
+            .DefaultIfEmpty((Unit: precision, Value: 0))
+            .Select(p => p.Unit.ToString().Pluralize(p.Value, toLower: true))
+            .ToList();
 
-    private static string Pluralize<T>(this TimeUnit unit, T value)
-        where T : IFormattable => unit.ToString().ToLowerInvariant().Pluralize(value);
+        return parts.Count switch
+        {
+            1 => parts[0],
+            2 => $"{parts[0]} and {parts[1]}",
+            _ => $"{string.Join(", ", parts.Take(parts.Count - 1))}, and {parts.Last()}",
+        };
+    }
 }

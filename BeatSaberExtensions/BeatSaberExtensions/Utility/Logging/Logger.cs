@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using BeatSaberExtensions.Enums;
+using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 using BeatSaberExtensions.Extensions.ExceptionExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Arguments;
@@ -10,132 +13,79 @@ using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility.Logging;
 
+#nullable enable
+
 public static class Logger
 {
-    private static IInlineInvokeProxy _cph;
-    private static string _logMessageTag;
-    private static Predicate<ActionContext> _noOpPredicate;
+    private const char BraillePatternBlankChar = '\u2800';
+
+    private static IInlineInvokeProxy? _cph;
+    private static string? _logMessageTag;
     private static LogAction _defaultLogAction;
     private static int _truncateAfterChars;
     private static int _truncateAfterCharsError;
 
-    public static bool IsInitialized => _cph is not null;
+    private static IInlineInvokeProxy CPH =>
+        _cph ?? throw new InvalidOperationException($"{nameof(CPH)} is null.");
 
     public static void Init(
         IInlineInvokeProxy cph,
         string logMessageTag,
-        Predicate<ActionContext> noOpPredicate = null,
         LogAction defaultLogAction = LogAction.Info,
         int truncateAfterChars = 1000,
-        int truncateAfterCharsError = 3000
+        int truncateAfterCharsError = 5000
     )
     {
         _cph = cph;
         _logMessageTag = logMessageTag;
-        _noOpPredicate = noOpPredicate ?? ((context) => true);
         _defaultLogAction = defaultLogAction;
         _truncateAfterChars = truncateAfterChars;
         _truncateAfterCharsError = truncateAfterCharsError;
+
+        Log("Logger Initialized");
     }
 
     public static void LogDebug(
         string logLine,
-        int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        int? truncateAfter = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) =>
-        Log(
-            logLine: logLine,
-            logAction: LogAction.Debug,
-            truncateAfterChars: truncateAfterChars,
-            methodName: methodName,
-            lineNumber
-        );
+    ) => Log(logLine, LogAction.Debug, truncateAfter, methodName, lineNumber);
 
     public static void LogVerbose(
         string logLine,
-        int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        int? truncateAfter = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) => Log(logLine, LogAction.Verbose, truncateAfterChars, methodName, lineNumber);
+    ) => Log(logLine, LogAction.Verbose, truncateAfter, methodName, lineNumber);
 
     public static void LogInfo(
         string logLine,
-        int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        int? truncateAfter = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) => Log(logLine, LogAction.Info, truncateAfterChars, methodName, lineNumber);
+    ) => Log(logLine, LogAction.Info, truncateAfter, methodName, lineNumber);
 
     public static void LogWarn(
         string logLine,
-        int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        int? truncateAfter = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) => Log(logLine, LogAction.Warn, truncateAfterChars, methodName, lineNumber);
+    ) => Log(logLine, LogAction.Warn, truncateAfter, methodName, lineNumber);
 
     public static void LogError(
         string logLine,
-        int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        int? truncateAfter = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
-    ) => Log(logLine, LogAction.Error, truncateAfterChars, methodName, lineNumber);
-
-    public static ActionContext CreateActionContext(
-        Dictionary<string, object> args,
-        out bool executeSuccess,
-        string label = "Action started with",
-        [CallerMemberName] string methodName = null,
-        [CallerLineNumber] int lineNumber = 0
-    )
-    {
-        if (!IsInitialized)
-        {
-            throw new InvalidOperationException(
-                $"You must call Init() before calling CreateActionContext."
-            );
-        }
-
-        var context = new ActionContext(args, _cph);
-
-        // Any instance of !bsr Raider Request triggered by the broadcaster account can be safely ignored.
-        // Setting executeSuccess to true results in the action stopping immediately.
-        if (_noOpPredicate.Invoke(context))
-        {
-            executeSuccess = true;
-            SetExecuteSuccessArgument(executeSuccess);
-
-            return context;
-        }
-
-        executeSuccess = false;
-
-        context.LogArgs(label, methodName, lineNumber);
-
-        return context;
-    }
-
-    public static void LogActionCompletion(
-        bool executeSuccess,
-        [CallerMemberName] string methodName = null,
-        [CallerLineNumber] int lineNumber = 0
-    )
-    {
-        SetExecuteSuccessArgument(executeSuccess);
-
-        Log(
-            $"Action completed with ExecuteSuccess: {executeSuccess}.",
-            executeSuccess ? LogAction.Info : LogAction.Warn,
-            methodName: methodName,
-            lineNumber: lineNumber
-        );
-    }
+    ) => Log(logLine, LogAction.Error, truncateAfter, methodName, lineNumber);
 
     public static void LogObject(
         object logObject,
-        string label = null,
+        string? label = null,
         LogAction? logAction = null,
         int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) =>
         Log(
@@ -149,48 +99,116 @@ public static class Logger
             lineNumber
         );
 
-    public static void HandleException(
-        Exception ex,
-        bool setArgument = true,
+    public static void LogSendResponse(
+        string message,
+        string label,
+        LogAction? logAction = null,
         int? truncateAfterChars = null,
-        string argName = "CSharpErrorMessage",
-        [CallerMemberName] string methodName = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
     )
     {
-        var message = ex.GetFormattedExceptionMessage();
+        var isMultiline = message.Contains('\n');
+        var logContext = isMultiline
+            ? string.Join(
+                Environment.NewLine,
+                message
+                    .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                    .Select(line => "\t" + line.TrimEnd(BraillePatternBlankChar))
+            )
+            : $" \"{message.TrimEnd(BraillePatternBlankChar)}\"";
+        var separator = isMultiline ? Environment.NewLine : " ";
+        var logLine = $"{label}:{separator}{logContext}".ReplaceVerticalWhitespace();
+
+        Log(logLine, logAction, truncateAfterChars, methodName, lineNumber);
+    }
+
+    public static void LogActionStart(
+        this ActionContext context,
+        string label = "Action started with",
+        [CallerMemberName] string? methodName = null,
+        [CallerLineNumber] int lineNumber = 0
+    )
+    {
+        LogObject(
+            new (string Key, string? Value)[]
+            {
+                ("EventType", context.EventType.ToString()),
+                ("CommandId", context.CommandId),
+                ("Command", context.Command),
+                ("RawInput", !string.IsNullOrEmpty(context.RawInput) ? context.RawInput : null),
+                ("Caller", context.Caller?.Format()),
+            }
+                .OfType<(string Key, string Value)>()
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
+            label,
+            methodName: methodName,
+            lineNumber: lineNumber
+        );
+    }
+
+    public static void LogActionCompletion(
+        bool executeSuccess,
+        [CallerMemberName] string? methodName = null,
+        [CallerLineNumber] int lineNumber = 0
+    )
+    {
+        SetExecuteSuccessArgument(executeSuccess);
+
+        Log(
+            $"Action completed with ExecuteSuccess: {executeSuccess}.",
+            executeSuccess ? LogAction.Info : LogAction.Warn,
+            methodName: methodName,
+            lineNumber: lineNumber
+        );
+    }
+
+    public static void HandleException(
+        Exception ex,
+        bool setArgument = true,
+        string argumentName = "CSharpErrorMessage",
+        LogAction logAction = LogAction.Error,
+        int? truncateAfter = null,
+        [CallerMemberName] string? methodName = null,
+        [CallerLineNumber] int lineNumber = 0
+    )
+    {
+        UserConfig.AddRecentExceptionMessage(
+            $"{ex.GetType().Name} in {ex.FormatMemberName(methodName)}: {ex.Message}"
+        );
+
+        var message = ex.Format();
 
         if (setArgument)
         {
-            var argumentValue = _cph.TryGetArg<string>(argName, out var currentValue)
+            var argumentValue = CPH.TryGetArg<string>(argumentName, out var currentValue)
                 ? string.Join("; ", currentValue, message)
                 : message;
 
-            _cph.SetArgument(argName, argumentValue);
+            CPH.SetArgument(argumentName, argumentValue);
         }
 
-        LogError(message, truncateAfterChars, methodName, lineNumber);
+        Log(message, logAction, truncateAfter ?? _truncateAfterCharsError, methodName, lineNumber);
     }
 
     public static void Log(
         string logLine,
         LogAction? logAction = null,
         int? truncateAfterChars = null,
-        [CallerMemberName] string methodName = null,
+        [CallerMemberName] string? methodName = null,
         [CallerLineNumber] int lineNumber = 0
     ) =>
         (
             (logAction ?? _defaultLogAction) switch
             {
-                _ when _cph is null => _ => { },
-                LogAction.Debug => _cph.LogDebug,
-                LogAction.Verbose => _cph.LogVerbose,
-                LogAction.Info => _cph.LogInfo,
-                LogAction.Warn => _cph.LogWarn,
-                LogAction.Error => _cph.LogError,
+                LogAction.Debug => CPH.LogDebug,
+                LogAction.Verbose => CPH.LogVerbose,
+                LogAction.Info => CPH.LogInfo,
+                LogAction.Warn => CPH.LogWarn,
+                LogAction.Error => CPH.LogError,
                 _ => new Action<string>(_ => { }),
             }
-        )(
+        ).Invoke(
             Truncate(
                 $"[{_logMessageTag}] [{methodName} L{lineNumber}] {logLine}",
                 logAction,
@@ -209,5 +227,5 @@ public static class Logger
         );
 
     private static void SetExecuteSuccessArgument(bool executeSuccess) =>
-        _cph.SetArgument("ExecuteSuccess", executeSuccess);
+        CPH.SetArgument("ExecuteSuccess", executeSuccess);
 }

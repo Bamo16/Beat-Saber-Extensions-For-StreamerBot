@@ -3,86 +3,67 @@ using System.Collections.Generic;
 
 namespace BeatSaberExtensions.Extensions.DictionaryExtensions;
 
+#nullable enable
+
 public static class DictionaryExtensions
 {
-    public static T Get<T>(
-        this IDictionary<string, object> sbArgs,
+    public static T? Get<T>(
+        this IDictionary<string, object> args,
         string key,
-        T defaultValue = default
-    ) => sbArgs.TryGet(key, out T value) ? value : defaultValue;
+        T? defaultValue = default
+    ) => args.TryGet(key, out T? value) ? value : defaultValue;
 
-    public static bool TryGet<T>(this IDictionary<string, object> sbArgs, string key, out T value)
+    public static bool TryGet<T>(this IDictionary<string, object> args, string key, out T? value)
     {
-        // When argName is null or empty, throw an exception
         if (string.IsNullOrEmpty(key))
         {
             throw new ArgumentNullException(nameof(key), "Argument name cannot be null or empty.");
         }
 
-        // When key is not present in Dictionary, return false
-        if (!sbArgs.TryGetValue(key, out var untypedValue))
+        if (!args.TryGetValue(key, out var untypedValue) || untypedValue is null)
         {
             value = default;
             return false;
         }
 
-        // When T is an enum, attempt to parse as enum
-        if (typeof(T).IsEnum)
+        if (untypedValue is T typedValue)
         {
-            return TryParseEnum(untypedValue, out value);
+            value = typedValue;
+            return value.PassesNullCheck();
         }
 
-        // Try to convert the untyped value from object to T
-        return TryConvertValue(untypedValue, out value);
+        return untypedValue.TryConvert(out value) && value.PassesNullCheck();
     }
 
-    private static bool TryParseEnum<T>(object untypedValue, out T value)
+    private static bool TryConvert<T>(
+        this object untypedValue,
+        out T? value,
+        bool fromString = false
+    )
     {
         try
         {
-            value = (T)Enum.Parse(typeof(T), untypedValue.ToString(), ignoreCase: true);
+            value = (T)
+                Convert.ChangeType(fromString ? untypedValue.ToString() : untypedValue, typeof(T));
             return true;
         }
         catch
         {
+            if (!fromString)
+            {
+                return untypedValue.TryConvert(out value, fromString: true);
+            }
+
             value = default;
             return false;
         }
     }
 
-    private static bool TryConvertValue<T>(object untypedValue, out T value)
-    {
-        // Attempt to cast from object to T using pattern matching
-        if (untypedValue is T typedValue)
+    private static bool PassesNullCheck<T>(this T value) =>
+        value switch
         {
-            value = typedValue;
-            return PassesNullCheck(value);
-        }
-
-        // Attempt to convert from object to T
-        try
-        {
-            value = (T)Convert.ChangeType(untypedValue, typeof(T));
-            return PassesNullCheck(value);
-        }
-        catch
-        {
-            // Attempt to convert from string to T
-            try
-            {
-                value = (T)Convert.ChangeType(untypedValue.ToString(), typeof(T));
-                return PassesNullCheck(value);
-            }
-            // Failed to cast/convert
-            catch
-            {
-                value = default;
-                return false;
-            }
-        }
-    }
-
-    private static bool PassesNullCheck<T>(T value) =>
-        value is not null
-        && (typeof(T) != typeof(string) || !string.IsNullOrEmpty(value.ToString()));
+            { } when typeof(T) != typeof(string) => true,
+            string str => !string.IsNullOrEmpty(str),
+            _ => false,
+        };
 }

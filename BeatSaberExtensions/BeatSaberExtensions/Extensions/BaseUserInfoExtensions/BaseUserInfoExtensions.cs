@@ -7,13 +7,11 @@ namespace BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 
 public static class BaseUserInfoExtensions
 {
-    public static string GetFormattedDisplayName(this BaseUserInfo user) =>
-        user is not { UserLogin: { } login, UserName: { } display }
+    public static string Format(this BaseUserInfo user, UsernameDisplayMode? mode = null)
+    {
+        return user is not { UserLogin: { } login, UserName: { } display }
             ? "UnknownUser"
-            : (
-                Mode: UserConfig.UsernameDisplayMode,
-                Localized: user.HasLocalizedDisplayName()
-            ) switch
+            : (Mode: mode ?? UserConfig.UsernameDisplayMode, Localized: user.IsLocalized()) switch
             {
                 // When mode is UserLoginOnly and DisplayName is localized, show LoginName
                 { Mode: UsernameDisplayMode.UserLoginOnly, Localized: true } => $"@{login}",
@@ -31,11 +29,12 @@ public static class BaseUserInfoExtensions
                 { Mode: UsernameDisplayMode.Dynamic, Localized: false } => $"@{display}",
 
                 // Failure case
-                { Mode: var mode } => throw new InvalidOperationException(
-                    $"Unsupported UsernameDisplayMode: {mode}."
+                { Mode: var m } => throw new InvalidOperationException(
+                    $"Unsupported UsernameDisplayMode: {m}."
                 ),
             };
+    }
 
-    private static bool HasLocalizedDisplayName(this BaseUserInfo user) =>
+    public static bool IsLocalized(this BaseUserInfo user) =>
         !string.Equals(user.UserName, user.UserLogin, StringComparison.OrdinalIgnoreCase);
 }
