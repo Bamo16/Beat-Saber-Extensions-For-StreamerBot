@@ -6,13 +6,16 @@ namespace BeatSaberExtensions.Extensions.DateTimeExtensions;
 
 public static class DateTimeExtensions
 {
+    public static string ToStreamerBotDateString(this DateTime dateTime) =>
+        $"{dateTime.ToLocalTime():G} ({new DateTimeOffset(dateTime.ToUniversalTime()).ToUnixTimeMilliseconds()})";
+
     public static string ToCurrentDateAwareFriendlyFormat(this DateTime value) =>
         value switch
         {
             _ when value.IsInLast24Hours() =>
-                $"{DateTime.UtcNow.Subtract(value).ToFriendlyString(TimeUnit.Minute)} ago",
+                $"{DateTime.UtcNow.Subtract(value).Format(TimeUnit.Minute)} ago",
             _ when value.IsInCurrentMonth() =>
-                $"{DateTime.UtcNow.Subtract(value).ToFriendlyString(TimeUnit.Hour)} ago",
+                $"{DateTime.UtcNow.Subtract(value).Format(TimeUnit.Hour)} ago",
             _ when value.IsInCurrentYear() => $"on {value:MMMM d}",
             _ => $"on {value:MMMM d yyyy}",
         };

@@ -4,53 +4,117 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Extensions.FormattableExtensions;
+using BeatSaberExtensions.Extensions.MatchExtensions;
+using BeatSaberExtensions.Utility.Arguments;
 
 namespace BeatSaberExtensions.Extensions.StringExtensions;
 
 public static class StringExtensions
 {
     private const int MaxChatMessageLength = 500;
+    private const int MaxWhisperLineLength = 32;
     private const int MaxChatLineLength = 35;
     private const string TruncationReplacement = "…";
     private const char BraillePatternBlankChar = '\u2800';
 
+    private static readonly string[] _dateTimeFormats =
+    [
+        "yyyy-MM-dd HH:mm:ss.fff tt zzz",
+        "dd.MM.yyyy HH:mm:ss",
+        "dd/MM/yyyy HH:mm:ss",
+        "yyyy/MM/dd HH:mm:ss",
+    ];
+    private static readonly Regex _dateTimePattern = new Regex(
+        @"
+        (?<UnixTimestamp>(?<=\()\d+(?=\)))
+        |
+        (?<LegacyTimestamp>
+            // yyyy-MM-dd HH:mm:ss.fff tt zzz
+            \d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s(?:AM|PM)\s[-+]\d{2}:\d{2}
+            |
+            // dd.MM.yyyy HH:mm:ss
+            \d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2}:\d{2}
+            |
+            // dd/MM/yyyy HH:mm:ss
+            \d{2}/\d{2}/\d{4}\s\d{2}:\d{2}:\d{2}
+            |
+            // yyyy/MM/dd HH:mm:ss
+            \d{4}/\d{2}/\d{2}\s\d{2}:\d{2}:\d{2}
+        )
+        ",
+        RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace | RegexOptions.ExplicitCapture
+    );
     private static readonly Regex _whitespacePattern = new Regex(@"\s+", RegexOptions.Compiled);
     private static readonly Regex _requestPattern = new Regex(
-        @"^!bsr\s+(?<BsrId>[a-z0-9]{1,6})\b",
+        @"^(?:(?<Command>!bsr)(?:\s+))?(?<BsrId>[a-z0-9]{1,6})\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture
     );
 
-    public static string MatchBsrRequest(this string input) =>
+    public static string MatchBsrRequest(this string input, bool bsrIdOnly = false) =>
         !string.IsNullOrEmpty(input)
-        && _requestPattern.Match(input).Groups["BsrId"] is { Success: true, Value: { } value }
-            ? value
+        && _requestPattern.Match(input) is { Success: true, Groups: { } groups }
+        && (bsrIdOnly || groups["Command"] is { Success: true })
+        && groups["BsrId"] is { Success: true, Value: { } value }
+            ? value.ToLowerInvariant()
             : null;
+
+    public static string GetBeatSaverLink(this string bsrId) =>
+        $"https://beatsaver.com/maps/{bsrId}";
 
     public static string Pluralize<T>(
         this string noun,
         T quantity,
         string format = null,
         bool excludeQuantity = false,
+        bool toLower = false,
         string customPlural = null
     )
         where T : IFormattable
     {
         var nounPart = quantity.Equals(1, format) ? noun : customPlural ?? $"{noun}s";
+        var result = excludeQuantity ? nounPart : $"{quantity.ToString(format, null)} {nounPart}";
 
-        if (excludeQuantity)
-        {
-            return nounPart;
-        }
-
-        return $"{quantity.ToString(format, null)} {nounPart}";
+        return toLower ? result.ToLowerInvariant() : result;
     }
+
+    public static DateTime FromStreamerBotDateString(
+        this string value,
+        DateTime? defaultValue = null,
+        IFormatProvider provider = null,
+        DateTimeStyles styles = DateTimeStyles.AssumeLocal
+    ) =>
+        _dateTimePattern
+            .Match(value ?? string.Empty)
+            .GetNamedCaptureGroups()
+            .FirstOrDefault() switch
+        {
+            { Name: "UnixTimestamp", Value: { } v } when long.TryParse(v, out var ms) =>
+                DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime,
+
+            { Value: { } v }
+                when DateTime.TryParseExact(
+                    v,
+                    _dateTimeFormats,
+                    provider ?? CultureInfo.InvariantCulture,
+                    styles,
+                    out var dt
+                ) => dt.ToUniversalTime(),
+
+            _ => default(DateTime?),
+        }
+        ?? defaultValue
+        ?? DateTime.MinValue;
+
+    public static string SanitizeLookupString(this string lookupString) =>
+        (lookupString ?? string.Empty).Trim().TrimStart('@').Trim();
 
     public static bool ContainsNonAscii(this string value) => value.Any(c => c > sbyte.MaxValue);
 
     public static string Truncate(
         this string input,
-        int maxLength = MaxChatMessageLength,
+        int maxLength,
         string truncationReplacement = TruncationReplacement
     )
     {
@@ -89,11 +153,11 @@ public static class StringExtensions
 
     public static string FormatMultilineChatMessage(
         this IEnumerable<string> chatLines,
+        ActionContext context,
         string header = null,
         string lineTruncationReplacement = TruncationReplacement,
         string messageTruncationReplacement = TruncationReplacement,
-        char separatorChar = BraillePatternBlankChar,
-        int maxLineLength = MaxChatLineLength
+        char separatorChar = BraillePatternBlankChar
     ) =>
         string.Join(
                 "\n",
@@ -101,27 +165,36 @@ public static class StringExtensions
                     line.FormatChatMessageLine(
                         lineTruncationReplacement,
                         separatorChar,
-                        maxLineLength
+                        context is { CommandType: CommandType.BotWhisper } isWhisper
+                            ? MaxWhisperLineLength
+                            : MaxChatLineLength
                     )
                 )
             )
             .Truncate(MaxChatMessageLength, messageTruncationReplacement);
 
-    public static bool TryParseDateTime(this string value, out DateTime result)
+    public static string ReplaceVerticalWhitespace(this string input, string separator = " ") =>
+        string.Join(separator, input.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries));
+
+    public static bool CaseInsensitiveContains(this string source, string toCheck) =>
+        source.Contains(toCheck, StringComparison.OrdinalIgnoreCase);
+
+    public static string TakeUntilWhitespace(this string source)
     {
-        if (!DateTime.TryParse(value, null, DateTimeStyles.RoundtripKind, out result))
+        for (var i = 0; i < source.Length; i++)
         {
-            return false;
+            if (char.IsWhiteSpace(source[i]))
+                return source.Substring(0, i);
         }
 
-        if (result is { Kind: DateTimeKind.Unspecified })
-        {
-            result = DateTime.SpecifyKind(result, DateTimeKind.Local);
-        }
-
-        result = result.ToUniversalTime();
-        return true;
+        return source;
     }
+
+    private static bool Contains(
+        this string source,
+        string toCheck,
+        StringComparison comparisonType
+    ) => source?.IndexOf(toCheck, comparisonType) is >= 0;
 
     private static string FormatChatMessageLine(
         this string chatLine,

@@ -1,6 +1,7 @@
 using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 using BeatSaberExtensions.Extensions.StringExtensions;
@@ -18,7 +19,7 @@ public static class ExceptionExtensions
         RegexOptions.Compiled
     );
 
-    public static string GetFormattedExceptionMessage(this Exception ex)
+    public static string Format(this Exception ex)
     {
         using var writer = new IndentedTextWriter(new StringWriter());
 
@@ -26,6 +27,18 @@ public static class ExceptionExtensions
 
         return writer.InnerWriter.ToString();
     }
+
+    public static string FormatMemberName(this Exception ex, string fallbackMethodName) =>
+        (
+            new StackTrace(ex, true).GetFrame(0)?.GetMethod()
+            ?? new StackTrace().GetFrame(1)?.GetMethod()
+        ) switch
+        {
+            { Name: { } name, DeclaringType.Name: { } dt } => $"{dt}.{name}()",
+            { Name: { } name } => $"{name}()",
+            _ when fallbackMethodName is not null => $"{fallbackMethodName}()",
+            _ => "UnknownMember",
+        };
 
     private static void FormatExceptionDetails(
         this Exception ex,

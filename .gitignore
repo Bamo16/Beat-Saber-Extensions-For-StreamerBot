@@ -3,9 +3,9 @@
 **/obj/**
 
 # Auto-generated files
-*.sln
-*.slnx
-*.sln.DotSettings
+# *.sln
+# *.slnx
+# *.sln.DotSettings
 
 # From IDEs
 .vs/

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using BeatSaberExtensions.Utility;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 
 namespace BeatSaberExtensions.Extensions.EnumerableExtensions;

@@ -1,10 +1,13 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
+using BeatSaberExtensions.Extensions.DateTimeExtensions;
 using BeatSaberExtensions.Extensions.GroupUserExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Logging;
+using Newtonsoft.Json;
 using Streamer.bot.Plugin.Interface;
 using Streamer.bot.Plugin.Interface.Enums;
 using Streamer.bot.Plugin.Interface.Model;
@@ -13,78 +16,37 @@ namespace BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 
 public static class InlineInvokeProxyExtensions
 {
-    private const string LocalizedDisplayUsersGroup = "Localized DisplayName Users";
-
-    private static readonly ConcurrentDictionary<string, BaseUserInfo> _userLookup =
-        new ConcurrentDictionary<string, BaseUserInfo>(StringComparer.OrdinalIgnoreCase);
-
-    private static TwitchUserInfo _broadcaster;
-    private static TwitchUserInfo _bot;
-
-    public static T GetUser<T>(this IInlineInvokeProxy cph, string lookupString)
-        where T : BaseUserInfo
-    {
-        var sanitized = (lookupString ?? string.Empty).Trim().TrimStart('@');
-
-        if (string.IsNullOrWhiteSpace(sanitized))
-        {
-            return null;
-        }
-
-        if (cph.GetCachedUser(sanitized) is { } cached)
-        {
-            return typeof(T) == typeof(BaseUserInfo)
-                // Fast path: already cached, and T is BaseUserInfo
-                ? cached as T
-                // Fetch from Twitch API when T is TwitchUserInfo or TwitchUserInfoEx
-                : cph.GetTwitchUserByLogin<T>(cached.UserLogin);
-        }
-
-        if (cph.GetTwitchUserByLogin<T>(sanitized) is { } user)
-        {
-            // Cache BaseUserInfo value when user is fetched successfully
-            return user.CacheUser();
-        }
-
-        return null;
-    }
-
-    public static void SendMessageAndLog(
-        this IInlineInvokeProxy cph,
-        string message,
-        bool useBot = true,
-        bool fallback = true
-    )
-    {
-        if (!string.IsNullOrEmpty(message))
-        {
-            Logger.Log($"Sending message: \"{message}\".");
-
-            cph.SendMessage(message, useBot, fallback);
-        }
-    }
-
     public static DateTime GetDateTimeGlobalVar(
         this IInlineInvokeProxy cph,
         string varName,
         bool persisted = true,
         DateTime defaultValue = default
-    ) =>
-        cph.GetGlobalVar<string>(varName, persisted).TryParseDateTime(out var value)
-            ? value
-            : defaultValue;
+    ) => cph.GetGlobalVar<string>(varName, persisted).FromStreamerBotDateString(defaultValue);
 
     public static void SetDateTimeGlobalVar(
         this IInlineInvokeProxy cph,
         string varName,
         DateTime? value = null,
         bool persisted = true
+    ) => cph.SetGlobalVar(varName, (value ?? DateTime.UtcNow).ToStreamerBotDateString(), persisted);
+
+    public static T GetCustomGlobalVar<T>(
+        this IInlineInvokeProxy cph,
+        string varName,
+        bool persisted = true,
+        T defaultValue = default
     ) =>
-        cph.SetGlobalVar(
-            varName,
-            (value ?? DateTime.UtcNow).ToLocalTime().ToString("yyyy-MM-dd hh:mm:ss.fff tt zzz"),
-            persisted
-        );
+        cph.GetGlobalVar<string>(varName, persisted) is string stringValue
+        && !string.IsNullOrEmpty(stringValue)
+            ? JsonConvert.DeserializeObject<T>(stringValue) ?? defaultValue
+            : defaultValue;
+
+    public static void SetCustomGlobalVar<T>(
+        this IInlineInvokeProxy cph,
+        string varName,
+        T value,
+        bool persisted = true
+    ) => cph.SetGlobalVar(varName, JsonConvert.SerializeObject(value), persisted);
 
     public static void SetCommandState(this IInlineInvokeProxy cph, string commandId, bool state)
     {
@@ -96,6 +58,9 @@ public static class InlineInvokeProxyExtensions
 
     public static bool StreamIsLive(this IInlineInvokeProxy cph) =>
         cph.ObsIsConnected() && cph.ObsIsStreaming();
+
+    public static BaseUserInfo[] GetStreamerBotAccounts(this IInlineInvokeProxy cph) =>
+        [.. new[] { cph.GetBroadcaster(), cph.GetBot() }.OfType<BaseUserInfo>()];
 
     public static bool TryWaitForCondition<T>(
         this IInlineInvokeProxy cph,
@@ -128,20 +93,32 @@ public static class InlineInvokeProxyExtensions
         return false;
     }
 
-    public static bool IsBroadcasterLogin(this IInlineInvokeProxy cph, string userLogin) =>
-        cph.GetBroadcaster().UserLogin == userLogin;
+    public static List<BaseUserInfo> BaseUserInfoInGroup(
+        this IInlineInvokeProxy cph,
+        string groupName
+    ) => cph.UsersInGroup(groupName).ConvertAll(user => user.ToBaseUserInfo());
+
+    public static bool CheckGroupMembership(
+        this IInlineInvokeProxy cph,
+        BaseUserInfo user,
+        string groupName
+    ) => cph.UserIdInGroup(user.UserId, Platform.Twitch, groupName);
 
     public static bool EnsureGroupMembershipForUser(
         this IInlineInvokeProxy cph,
         BaseUserInfo user,
         string groupName,
-        bool shouldBelongToGroup
+        bool shouldBelongToGroup,
+        bool alwaysLog = false
     )
     {
-        var displayName = user.GetFormattedDisplayName();
+        var displayName = user.Format();
         var groupStatus = shouldBelongToGroup ? "belongs to" : "does not belong to";
 
-        Logger.Log($"Ensuring that {displayName} {groupStatus} the \"{groupName}\" group.");
+        if (alwaysLog)
+        {
+            Logger.Log($"Ensuring that {displayName} {groupStatus} the \"{groupName}\" group.");
+        }
 
         if (!cph.EnsureGroupState(groupName, true) || user is not { UserId: { } userId })
         {
@@ -152,9 +129,12 @@ public static class InlineInvokeProxyExtensions
         {
             var membershipDescriptor = shouldBelongToGroup ? "a member of" : "not a member of";
 
-            Logger.Log(
-                $"{displayName} is already {membershipDescriptor} the \"{groupName}\" group."
-            );
+            if (alwaysLog)
+            {
+                Logger.Log(
+                    $"{displayName} is already {membershipDescriptor} the \"{groupName}\" group."
+                );
+            }
 
             return true;
         }
@@ -166,9 +146,12 @@ public static class InlineInvokeProxyExtensions
 
         if (success)
         {
-            Logger.Log(
-                $"Successfully {actionVerb}ed {displayName} {(shouldBelongToGroup ? "to" : "from")} the \"{groupName}\" group."
-            );
+            if (alwaysLog)
+            {
+                Logger.Log(
+                    $"Successfully {actionVerb}ed {displayName} {(shouldBelongToGroup ? "to" : "from")} the \"{groupName}\" group."
+                );
+            }
 
             return true;
         }
@@ -188,52 +171,17 @@ public static class InlineInvokeProxyExtensions
         cph.GroupExists(groupName) == groupExists
         || (groupExists ? cph.AddGroup(groupName) : cph.DeleteGroup(groupName));
 
-    public static TwitchUserInfo GetBroadcaster(this IInlineInvokeProxy cph) =>
-        _broadcaster ??= cph.TwitchGetBroadcaster();
-
-    public static TwitchUserInfo GetBot(this IInlineInvokeProxy cph) => _bot ??= cph.TwitchGetBot();
-
-    private static BaseUserInfo GetCachedUser(this IInlineInvokeProxy cph, string lookupString)
+    public static List<FileInfo> GetLogFiles(this IInlineInvokeProxy cph, int days = 7)
     {
-        if (_userLookup.TryGetValue(lookupString, out var user))
-        {
-            return user;
-        }
+        var modifiedThreshold = DateTime.UtcNow - TimeSpan.FromDays(days);
 
-        if (!lookupString.ContainsNonAscii())
-        {
-            return null;
-        }
-
-        foreach (var localizedUser in cph.GetBaseUserInfoInGroup(LocalizedDisplayUsersGroup))
-            localizedUser.CacheUser();
-
-        return _userLookup.TryGetValue(lookupString, out user) ? user : null;
-    }
-
-    private static List<BaseUserInfo> GetBaseUserInfoInGroup(
-        this IInlineInvokeProxy cph,
-        string groupName
-    ) =>
-        cph.EnsureGroupState(groupName, true)
-            ? cph.UsersInGroup(groupName).ConvertAll(groupUser => groupUser.ToBaseUserInfo())
-            : throw new InvalidOperationException($"Failed to create group: \"{groupName}\".");
-
-    private static T GetTwitchUserByLogin<T>(this IInlineInvokeProxy cph, string userLogin)
-        where T : BaseUserInfo =>
-        typeof(T) == typeof(TwitchUserInfoEx)
-            ? cph.TwitchGetExtendedUserInfoByLogin(userLogin) as T
-            : cph.TwitchGetUserInfoByLogin(userLogin) as T;
-
-    private static T CacheUser<T>(this T user)
-        where T : BaseUserInfo
-    {
-        if (user is { UserLogin: { } username, UserName: { } displayName })
-        {
-            _userLookup.TryAdd(username, user);
-            _userLookup.TryAdd(displayName, user);
-        }
-
-        return user;
+        return
+        [
+            .. Directory
+                .GetFiles(".", @"logs\*.log")
+                .Select(file => new FileInfo(file))
+                .Where(fileInfo => fileInfo.LastWriteTime > modifiedThreshold)
+                .OrderByDescending(fileInfo => fileInfo.LastWriteTime),
+        ];
     }
 }

@@ -6,6 +6,8 @@ using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 
 namespace BeatSaberExtensions.Utility.Http.BeatSaver;
 
+#nullable enable
+
 public class BeatSaverClient(bool logWhenSuccessful = false)
     : BaseHttpClient(new Uri(BeatSaverBaseUri), logWhenSuccessful)
 {
@@ -23,7 +25,7 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
     private bool ShouldPerformCacheEviction =>
         _lastCacheEvictionCheck + _cacheEvictionInterval <= DateTime.UtcNow;
 
-    public Beatmap GetBeatmap(string id) => GetBeatmaps([id]).Values.DefaultIfEmpty(null).Single();
+    public Beatmap? GetBeatmap(string id) => GetBeatmaps([id]).Values.FirstOrDefault();
 
     public Dictionary<string, Beatmap> GetBeatmaps(IEnumerable<string> ids)
     {
@@ -53,7 +55,7 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
                 relativePath: $"/maps/id/{idsToFetch.Single()}",
                 defaultValue: null
             )
-                is { } singleBeatmap
+                is { Id: not null } singleBeatmap
                 ? [singleBeatmap]
                 : []
             : GetMultiBeatmapRelativePath(idsToFetch)
@@ -63,7 +65,10 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
                         defaultValue: []
                     )
                 )
-                .SelectMany(response => response.Values);
+                .OfType<Dictionary<string, Beatmap>>()
+                .SelectMany(response =>
+                    response.Values.Where(beatmap => beatmap is { Id: not null })
+                );
 
         foreach (var beatmap in beatmaps)
         {

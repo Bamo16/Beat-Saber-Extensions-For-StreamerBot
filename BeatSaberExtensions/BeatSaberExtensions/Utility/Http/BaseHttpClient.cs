@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Specialized;
-using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Web;
 using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Extensions.UriExtensions;
 using BeatSaberExtensions.Utility.Logging;
@@ -12,48 +10,48 @@ using Newtonsoft.Json.Serialization;
 
 namespace BeatSaberExtensions.Utility.Http;
 
+#nullable enable
+
 public abstract class BaseHttpClient(
     Uri baseUri,
     bool logWhenSuccessful = false,
     TimeSpan? timeout = null,
-    JsonSerializerSettings settings = null
+    JsonSerializerSettings? settings = null
 ) : IDisposable
 {
-    private static readonly JsonSerializerSettings _defaultJsonSerializerSettings =
-        new JsonSerializerSettings
-        {
-            NullValueHandling = NullValueHandling.Ignore,
-            ContractResolver = new CamelCasePropertyNamesContractResolver(),
-        };
-
     private readonly HttpClient _client = new HttpClient
     {
         Timeout = timeout ?? TimeSpan.FromSeconds(15),
     };
     private readonly JsonSerializerSettings _jsonSerializerSettings =
-        settings ?? _defaultJsonSerializerSettings;
+        settings
+        ?? new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+        };
 
     public void Dispose() => _client?.Dispose();
 
-    protected T SendHttpRequest<T>(
-        HttpMethod method = null,
+    protected T? SendHttpRequest<T>(
+        HttpMethod? method = null,
         string relativePath = "/",
-        NameValueCollection queryParams = null,
-        T defaultValue = default
+        NameValueCollection? queryParams = null,
+        T? defaultValue = default
     ) =>
-        SendHttpRequestAsync(method, relativePath, queryParams, defaultValue)
+        SendAsync(method, relativePath, queryParams, defaultValue)
             .ConfigureAwait(false)
             .GetAwaiter()
             .GetResult();
 
-    private async Task<T> SendHttpRequestAsync<T>(
-        HttpMethod method = null,
+    private async Task<T?> SendAsync<T>(
+        HttpMethod? method = null,
         string relativePath = "/",
-        NameValueCollection queryParams = null,
-        T defaultValue = default
+        NameValueCollection? queryParams = null,
+        T? defaultValue = default
     )
     {
-        var requestMessage = BuildHttpRequest(baseUri, method, relativePath, queryParams);
+        var requestMessage = baseUri.BuildHttpRequestMessage(method, relativePath, queryParams);
 
         HttpResponseMessage responseMessage;
         string responseContent;
@@ -97,7 +95,7 @@ public abstract class BaseHttpClient(
             return defaultValue;
         }
 
-        if (!TryDeserialize(responseContent, out T result))
+        if (!TryDeserialize(responseContent, out T? result))
         {
             Logger.LogObject(
                 new
@@ -128,7 +126,7 @@ public abstract class BaseHttpClient(
         return result;
     }
 
-    private bool TryDeserialize<T>(string value, out T result)
+    private bool TryDeserialize<T>(string value, out T? result)
     {
         try
         {
@@ -144,23 +142,4 @@ public abstract class BaseHttpClient(
             return false;
         }
     }
-
-    private static HttpRequestMessage BuildHttpRequest(
-        Uri baseUri,
-        HttpMethod method = null,
-        string relativePath = "/",
-        NameValueCollection queryParams = null
-    ) =>
-        new HttpRequestMessage
-        {
-            Method = method ?? HttpMethod.Get,
-            RequestUri = new UriBuilder
-            {
-                Scheme = baseUri.Scheme,
-                Host = baseUri.Host,
-                Port = baseUri.Port,
-                Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/{relativePath.TrimStart('/')}",
-                Query = baseUri.BuildQuery(queryParams).ToString(),
-            }.Uri,
-        };
 }

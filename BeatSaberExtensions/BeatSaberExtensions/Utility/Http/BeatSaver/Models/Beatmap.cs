@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Http.BeatLeader.Models;
 using Newtonsoft.Json;
 
@@ -8,46 +9,19 @@ namespace BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 
 public class Beatmap
 {
-    [JsonProperty("id")]
     public string Id { get; private set; }
-
-    [JsonProperty("name")]
     public string Name { get; private set; }
-
-    [JsonProperty("description")]
     public string Description { get; private set; }
-
-    [JsonProperty("metadata")]
     public BeatmapMetadata Metadata { get; private set; }
-
-    [JsonProperty("stats")]
     public BeatmapStats Stats { get; private set; }
-
-    [JsonProperty("tags")]
     public ReadOnlyCollection<string> Tags { get; private set; } = new([]);
-
-    [JsonProperty("updatedAt")]
     public DateTime UpdatedAt { get; private set; }
-
-    [JsonProperty("uploaded")]
     public DateTime Uploaded { get; private set; }
-
-    [JsonProperty("automapper")]
     public bool Automapper { get; private set; }
-
-    [JsonProperty("ranked")]
     public bool Ranked { get; private set; }
-
-    [JsonProperty("qualified")]
     public bool Qualified { get; private set; }
-
-    [JsonProperty("versions")]
     public ReadOnlyCollection<BeatmapVersion> Versions { get; private set; } = new([]);
-
-    [JsonProperty("curatedAt", NullValueHandling = NullValueHandling.Ignore)]
     public DateTime? CuratedAt { get; private set; }
-
-    [JsonProperty("deletedAt")]
     public DateTime DeletedAt { get; private set; }
 
     private BeatmapVersion _latestVersion;
@@ -59,7 +33,7 @@ public class Beatmap
             .FirstOrDefault();
 
     [JsonIgnore]
-    public string Link => $"https://beatsaver.com/maps/{Id}";
+    public string Link => Id.GetBeatSaverLink();
 
     [JsonIgnore]
     public TimeSpan Duration => TimeSpan.FromSeconds(Metadata.DurationSeconds);
