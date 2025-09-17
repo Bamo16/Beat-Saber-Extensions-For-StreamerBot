@@ -31,16 +31,16 @@ public static class StringExtensions
         (?<UnixTimestamp>(?<=\()\d+(?=\)))
         |
         (?<LegacyTimestamp>
-            // yyyy-MM-dd HH:mm:ss.fff tt zzz
+            # yyyy-MM-dd HH:mm:ss.fff tt zzz
             \d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{3}\s(?:AM|PM)\s[-+]\d{2}:\d{2}
             |
-            // dd.MM.yyyy HH:mm:ss
+            # dd.MM.yyyy HH:mm:ss
             \d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2}:\d{2}
             |
-            // dd/MM/yyyy HH:mm:ss
+            # dd/MM/yyyy HH:mm:ss
             \d{2}/\d{2}/\d{4}\s\d{2}:\d{2}:\d{2}
             |
-            // yyyy/MM/dd HH:mm:ss
+            # yyyy/MM/dd HH:mm:ss
             \d{4}/\d{2}/\d{2}\s\d{2}:\d{2}:\d{2}
         )
         ",
