@@ -96,11 +96,6 @@ public class BeatSaberExtensionsConfig
     public TimeSpan BeatmapCacheDuration => TimeSpan.FromMinutes(BeatmapCacheDurationMinutes);
 
     [JsonIgnore]
-    public TimeSpan BeatmapRefreshAfterDuration =>
-        BeatmapCacheDuration
-        - TimeSpan.FromSeconds(Math.Min(30, 0.2 * BeatmapCacheDuration.TotalSeconds));
-
-    [JsonIgnore]
     public TimeSpan TimeBetweenSongs => TimeSpan.FromSeconds(SecondsBetweenSongs);
 
     [JsonIgnore]

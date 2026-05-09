@@ -41,11 +41,8 @@ public class Beatmap
     private readonly DateTime _fetchedAt = DateTime.UtcNow;
 
     [JsonIgnore]
-    public bool ShouldEvict => DateTime.UtcNow > _fetchedAt + UserConfig.Config.BeatmapCacheDuration;
-
-    [JsonIgnore]
     public bool ShouldRefresh =>
-        DateTime.UtcNow > _fetchedAt + UserConfig.Config.BeatmapRefreshAfterDuration;
+        DateTime.UtcNow > _fetchedAt + UserConfig.Config.BeatmapCacheDuration;
 
     [JsonIgnore]
     public string DisplayString =>

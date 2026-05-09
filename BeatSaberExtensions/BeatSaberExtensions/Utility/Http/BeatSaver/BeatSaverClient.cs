@@ -13,17 +13,10 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
 {
     private const string BeatSaverBaseUri = "https://api.beatsaver.com/";
 
-    private static readonly TimeSpan _cacheEvictionInterval = TimeSpan.FromMinutes(5);
-
     private readonly object _lock = new object();
     private readonly Dictionary<string, Beatmap> _cachedBeatmaps = new Dictionary<string, Beatmap>(
         StringComparer.OrdinalIgnoreCase
     );
-
-    private DateTime _lastCacheEvictionCheck = DateTime.MinValue;
-
-    private bool ShouldPerformCacheEviction =>
-        _lastCacheEvictionCheck + _cacheEvictionInterval <= DateTime.UtcNow;
 
     public Beatmap? GetBeatmap(string id) => GetBeatmaps([id]).Values.FirstOrDefault();
 
@@ -31,8 +24,6 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
     {
         lock (_lock)
         {
-            EvictExpiredBeatmaps();
-
             var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(id => id.ToLower())
                 .ToList();
@@ -45,8 +36,8 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
 
             FetchBeatmaps(idsToFetch);
 
-            // Fall back to whatever is in the cache (possibly stale) when the fetch
-            // failed or returned nothing — stale info is far more useful than no info.
+            // Cache entries are kept indefinitely. A failed refresh leaves the
+            // existing entry intact; stale info is strictly better than nothing.
             return distinctIds
                 .Where(_cachedBeatmaps.ContainsKey)
                 .ToDictionary(
@@ -87,20 +78,6 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
         foreach (var beatmap in beatmaps)
         {
             _cachedBeatmaps[beatmap.Id] = beatmap;
-        }
-    }
-
-    private void EvictExpiredBeatmaps()
-    {
-        if (ShouldPerformCacheEviction)
-        {
-            _cachedBeatmaps
-                .Where(kvp => kvp.Value.ShouldEvict)
-                .Select(kvp => kvp.Key)
-                .ToList()
-                .ForEach(id => _cachedBeatmaps.Remove(id));
-
-            _lastCacheEvictionCheck = DateTime.UtcNow;
         }
     }
 

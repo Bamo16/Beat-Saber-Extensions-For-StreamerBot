@@ -39,7 +39,7 @@
 * Fixed BeatSaberPlus blacklist not being honored. The plugin's `Database.json` field was renamed to `blocklist`, but our parser was still expecting `blacklist`, so the blacklist check silently let every blocked BSR ID through. Thanks @HakuTheWolfSpirit for the catch (#5).
 * Fixed `NullReferenceException` in `!bsrwhen` when any queued beatmap could not be retrieved from BeatSaver (transient outage, deleted/unpublished maps, etc.). Missing beatmaps no longer take down the entire response.
 * Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate. The configured value is now added to every queued song as documented.
-* Reworked the BeatSaver cache so a failed refresh fetch retains the existing stale entry instead of dropping it. Eviction also now correctly triggers on the eviction threshold rather than the refresh threshold.
+* Simplified the BeatSaver cache. Beatmap entries are now refreshed every `BeatmapCacheDurationMinutes` on access; if a refresh fetch fails, the existing entry stays put and is returned to the caller. Time-based eviction was removed entirely — a few KB per entry × the number of unique BSR IDs in a session is a non-problem, and the previous eviction logic actively undermined the stale-on-error fallback by removing entries before the next refresh attempt could run.
 * Fixed `!bsrlogs show <index>` reading the wrong input slot, which previously made the index argument inert.
 * Fixed `KeepRecentErrorCount` not actually controlling how many recent exceptions are retained.
 * Fixed `AllowBotWhispers` always reading its hardcoded default value because it had been declared as a field initializer instead of a property.
