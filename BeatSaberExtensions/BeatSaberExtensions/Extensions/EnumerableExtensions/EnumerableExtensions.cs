@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using BeatSaberExtensions.Utility;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 
 namespace BeatSaberExtensions.Extensions.EnumerableExtensions;
@@ -21,6 +22,9 @@ public static class EnumerableExtensions
             .Take(request.Position - 1)
             .Aggregate(
                 TimeSpan.Zero,
-                (total, current) => total.Add(current.Beatmap.Metadata.Duration)
+                (total, current) =>
+                    total
+                        .Add(current.Beatmap?.Duration ?? TimeSpan.Zero)
+                        .Add(UserConfig.TimeBetweenSongs)
             );
 }

@@ -140,7 +140,7 @@ public static class UserConfig
         BeatmapCacheDuration
         - TimeSpan.FromSeconds(Math.Min(30, 0.2 * BeatmapCacheDuration.TotalSeconds));
     public static TimeSpan TimeBetweenSongs => TimeSpan.FromSeconds(Get(90, "SecondsBetweenSongs"));
-    public static int KeeoRecentErrorCount => Get(10);
+    public static int KeepRecentErrorCount => Get(10);
 
     #endregion
 
@@ -155,7 +155,7 @@ public static class UserConfig
     #region Beatmap Safe Mode Display Options
 
     public static bool AlwaysShowWhenCurated => Get(true);
-    public static TimeSpan MinimumAge => TimeSpan.FromDays(Get(7, "MinimumimumAgeDays"));
+    public static TimeSpan MinimumAge => TimeSpan.FromDays(Get(7, "MinimumAgeDays"));
     public static double MinimumScore => Get(0.65);
     public static long MinimumUpvotes => Get(500L);
     public static TimeSpan MinimumDuration =>
@@ -213,14 +213,14 @@ public static class UserConfig
             Set<int>(nameof(MaximumQueueItemCount));
             Set<int>("BeatmapCacheDurationMinutes");
             Set<int>("SecondsBetweenSongs");
-            Set<int>(nameof(KeeoRecentErrorCount));
+            Set<int>(nameof(KeepRecentErrorCount));
 
             Set<int>(nameof(BumpValidationAttempts));
             Set<int>(nameof(BumpValidationDelayMs));
             Set<bool>(nameof(BumpNextRequestFromRaider));
 
             Set<bool>(nameof(AlwaysShowWhenCurated));
-            Set<int>("MinimumimumAgeDays");
+            Set<int>("MinimumAgeDays");
             Set<double>(nameof(MinimumScore));
             Set<long>(nameof(MinimumUpvotes));
             Set<int>("MinimumDurationSeconds");

@@ -65,7 +65,7 @@
 
 ### 📥 Importing Into StreamerBot
 
-* Copy StreamerBot Import String from [StreamerBot Import File](Beat%20Saber%20Extensions%20For%20StreamerBot.sb) and paste into the `Import` menu in StreamerBot (or download the file and click+drag it into the import window).
+* Copy StreamerBot Import String from [StreamerBot Import File](BeatSaberExtensions.sb) and paste into the `Import` menu in StreamerBot (or download the file and click+drag it into the import window).
 * Commands will be imported in a disabled state, so you will need to navigate to the `Commands` tab and enable all of the commands. They can all be found in the `Chat Commands - Beat Saber Extensions` subgroup in the commands tab.
 * Check the [🔧 Troubleshooting](#-troubleshooting) section if you run into any issues.
 
@@ -134,7 +134,7 @@ For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`)
 > [!IMPORTANT]
 > Please note that Twitch only allows accounts with verified phone numbers to send whispers. There are also a number of other limitations which you can read about on this StreamerBot documentation page: [Whispers | Streamer.bot Docs](https://docs.streamer.bot/api/triggers/twitch/chat/whispers/ "Whispers | Streamer.bot Docs").
 
-The bot will only respond via whisper if `AllowBotWhispers` is set to `True` in [General Configuration Setttings](#general-configuration-setttings) (this is the default) and the user sent a valid command to the bot via Twitch whisper. **Beat Saber Extensions** will *never* send unsolicited whispers to any user.
+The bot will only respond via whisper if `AllowBotWhispers` is set to `True` in [General Configuration Settings](#general-configuration-settings) (this is the default) and the user sent a valid command to the bot via Twitch whisper. **Beat Saber Extensions** will *never* send unsolicited whispers to any user.
 
 ## ⚡ Triggering Song Bumps From Your Own Actions
 
@@ -183,7 +183,7 @@ Argument Name                | Description                                      
 `WhenMessageFormat`          | Used to format the output of the `!bsrwhen` command.                             | `{0} is at position #{1}, and is playing in {2}.`
 
 
-### Song Bump Configuration Setttings
+### Song Bump Configuration Settings
 
 Argument Name                     | Description                                                                                 | Default Value
 --------------------------------- | ------------------------------------------------------------------------------------------- | -------------
@@ -191,9 +191,9 @@ Argument Name                     | Description                                 
 `BumpValidationDelayMs`           | Delay (in ms) between bump validation attempts.                                             | `4000`
 `BumpNextRequestFromRaider`       | When set to `true`, the first request from a raider will be bumped to the top of the queue. | `false`
 `ClearRaidRequestorsAfterMinutes` | When `BumpNextRequestFromRaider` is `true`, this setting determines how long a raid requestor will be remembered (in minutes) if the stream goes offline. | `30`
-`KeeoRecentErrorCount`            || `null`
+`KeepRecentErrorCount`            | Number of recent error messages to retain for the `!bsrlogs` command.                       | `10`
 
-### General Configuration Setttings
+### General Configuration Settings
 
 Argument Name                 | Description                                                           | Default Value
 ----------------------------- | --------------------------------------------------------------------- | -------------
@@ -212,7 +212,7 @@ The configuration options below control how beatmap info will be displayed when 
 Argument Name            | Description                                                                             | Default Value
 ------------------------ | --------------------------------------------------------------------------------------- | -------------
 `AlwaysShowWhenCurated`  | When set to `true`, any beatmap marked as being curated will be considered safe to display (regardless of other criterea). | `true`
-`MinimumimumAgeDays`     | Beatmaps uploaded more recently than this value will not have full beatmap info shown.  | `7`
+`MinimumAgeDays`         | Beatmaps uploaded more recently than this value will not have full beatmap info shown.  | `7`
 `MinimumScore`           | Beatmaps with a score less than this value will not have full beatmap info shown.       | `0.65`
 `MinimumUpvotes`         | Beatmaps with fewer upvotes than this value will not have full beatmap info shown.      | `500`
 `MinimumDurationSeconds` | Beatmaps with a duration shorter than this value will not have full beatmap info shown. | `90`
