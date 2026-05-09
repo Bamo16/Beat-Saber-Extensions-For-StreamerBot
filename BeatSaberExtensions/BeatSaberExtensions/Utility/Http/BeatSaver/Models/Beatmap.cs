@@ -41,11 +41,11 @@ public class Beatmap
     private readonly DateTime _fetchedAt = DateTime.UtcNow;
 
     [JsonIgnore]
-    public bool ShouldEvict => DateTime.UtcNow > _fetchedAt + UserConfig.BeatmapCacheDuration;
+    public bool ShouldEvict => DateTime.UtcNow > _fetchedAt + UserConfig.Config.BeatmapCacheDuration;
 
     [JsonIgnore]
     public bool ShouldRefresh =>
-        DateTime.UtcNow > _fetchedAt + UserConfig.BeatmapRefreshAfterDuration;
+        DateTime.UtcNow > _fetchedAt + UserConfig.Config.BeatmapRefreshAfterDuration;
 
     [JsonIgnore]
     public string DisplayString =>
@@ -71,15 +71,15 @@ public class Beatmap
         // Beatmap must meet these requirements to have name/author info displayed
         && (
             // Beatmap is curated
-            UserConfig.AlwaysShowWhenCurated && curatedAt is not null
+            UserConfig.Config.AlwaysShowWhenCurated && curatedAt is not null
             // - Or -
             // Beatmap wasn't updated in the last 7 days
-            || updated.ToUniversalTime() < DateTime.UtcNow.Subtract(UserConfig.MinimumAge)
+            || updated.ToUniversalTime() < DateTime.UtcNow.Subtract(UserConfig.Config.MinimumAge)
                 // And beatmap score is higher than 60%
-                && score >= UserConfig.MinimumScore
+                && score >= UserConfig.Config.MinimumScore
                 // And beatmap has at least 500 upvotes
-                && upvotes >= UserConfig.MinimumUpvotes
+                && upvotes >= UserConfig.Config.MinimumUpvotes
                 // And beatmap duration is longer than 90 seconds
-                && duration >= UserConfig.MinimumDuration
+                && duration >= UserConfig.Config.MinimumDuration
         );
 }

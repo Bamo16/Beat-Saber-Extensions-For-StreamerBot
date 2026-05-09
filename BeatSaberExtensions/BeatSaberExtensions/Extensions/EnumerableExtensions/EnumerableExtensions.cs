@@ -25,6 +25,6 @@ public static class EnumerableExtensions
                 (total, current) =>
                     total
                         .Add(current.Beatmap?.Duration ?? TimeSpan.Zero)
-                        .Add(UserConfig.TimeBetweenSongs)
+                        .Add(UserConfig.Config.TimeBetweenSongs)
             );
 }

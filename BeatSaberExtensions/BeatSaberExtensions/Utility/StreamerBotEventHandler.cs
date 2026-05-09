@@ -96,9 +96,9 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             {
                 { Queue: { Count: > 0 } queue } => GetQueueItem(queue, user) is { } request
                     ? ProcessSongBump(context, user, request)
-                    : string.Format(UserConfig.UserHasNoRequestsFormat, user.Format(), "does"),
+                    : string.Format(UserConfig.Config.UserHasNoRequestsFormat, user.Format(), "does"),
 
-                _ => UserConfig.QueueEmptyMessage,
+                _ => UserConfig.Config.QueueEmptyMessage,
             };
         }
 
@@ -119,10 +119,10 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
     private string HandleTwitchRaid(ActionContext context)
     {
-        if (UserConfig.BumpNextRequestFromRaider is false and var bumpConfig)
+        if (UserConfig.Config.BumpNextRequestFromRaider is false and var bumpConfig)
         {
             Logger.Log(
-                $"Ignoring raid request from {context.Caller.Format()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {bumpConfig}."
+                $"Ignoring raid request from {context.Caller.Format()} because {nameof(UserConfig.Config.BumpNextRequestFromRaider)} is {bumpConfig}."
             );
 
             return null;
@@ -152,7 +152,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             context,
             raider,
             request,
-            UserConfig.RaidRequestBumpMessage,
+            UserConfig.Config.RaidRequestBumpMessage,
             isRaidRequest: true
         );
     }
@@ -169,15 +169,15 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         if (_beatSaberService is not { Queue: { Count: > 0 } queue })
         {
-            return UserConfig.QueueEmptyMessage;
+            return UserConfig.Config.QueueEmptyMessage;
         }
 
         var max = context
-            .Get("input0", UserConfig.DefaultQueueItemCount)
-            .Clamp(1, UserConfig.MaximumQueueItemCount);
+            .Get("input0", UserConfig.Config.DefaultQueueItemCount)
+            .Clamp(1, UserConfig.Config.MaximumQueueItemCount);
         var header = _beatSaberService is { QueueState: true }
-            ? UserConfig.QueueStatusOpenMessage
-            : UserConfig.QueueStatusClosedMessage;
+            ? UserConfig.Config.QueueStatusOpenMessage
+            : UserConfig.Config.QueueStatusClosedMessage;
 
         return queue
             .Select(item => item.Format(withPosition: true, withUser: true))
@@ -189,7 +189,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     {
         if (_beatSaberService is not { Queue: { Count: > 0 } queue })
         {
-            return UserConfig.QueueEmptyMessage;
+            return UserConfig.Config.QueueEmptyMessage;
         }
 
         var user = context.GetUserFromArgs<BaseUserInfo>("input0", "userId");
@@ -200,7 +200,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         return !userRequests.Any()
             ? string.Format(
-                UserConfig.UserHasNoRequestsFormat,
+                UserConfig.Config.UserHasNoRequestsFormat,
                 isCaller ? "You" : user.Format(),
                 isCaller ? "do" : "does"
             )
@@ -214,7 +214,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     {
         if (_beatSaberService is not { Queue: { Count: > 0 } queue })
         {
-            return UserConfig.QueueEmptyMessage;
+            return UserConfig.Config.QueueEmptyMessage;
         }
 
         var user = context.GetUserFromArgs<BaseUserInfo>("input0", "userId");
@@ -222,12 +222,12 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         return GetQueueItem(queue, user, first: true) is not { } request
             ? string.Format(
-                UserConfig.UserHasNoRequestsFormat,
+                UserConfig.Config.UserHasNoRequestsFormat,
                 isCaller ? "You" : user.Format(),
                 isCaller ? "do" : "does"
             )
             : string.Format(
-                UserConfig.WhenMessageFormat,
+                UserConfig.Config.WhenMessageFormat,
                 request.Format(withPosition: false, withUser: false),
                 request.Position,
                 queue.GetEstimatedWaitTime(request).Format(),
@@ -257,22 +257,22 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     {
         if (_beatSaberService is not { BeatLeaderId: { } beatLeaderId })
         {
-            return UserConfig.FailedToGetBeatLeaderIdMessage;
+            return UserConfig.Config.FailedToGetBeatLeaderIdMessage;
         }
 
         if (!context.TryGet("input0", out string input))
         {
-            return UserConfig.LookupMissingBsrIdMessage;
+            return UserConfig.Config.LookupMissingBsrIdMessage;
         }
 
         if (_beatSaberService.GetBeatmapId(input) is not { } id)
         {
-            return string.Format(UserConfig.LookupInvalidBsrIdFormat, input);
+            return string.Format(UserConfig.Config.LookupInvalidBsrIdFormat, input);
         }
 
         if (_beatSaberService.BeatSaverClient.GetBeatmap(id) is not { } beatmap)
         {
-            return string.Format(UserConfig.LookupBeatmapNoFoundFormat, id);
+            return string.Format(UserConfig.Config.LookupBeatmapNoFoundFormat, id);
         }
 
         var score = _beatSaberService.BeatLeaderClient.GetBeatLeaderRecentScore(
@@ -283,14 +283,14 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         if (score is not { Timestamp: { } timestamp })
         {
             return string.Format(
-                UserConfig.LookupNoRecentScoresFormat,
+                UserConfig.Config.LookupNoRecentScoresFormat,
                 cph.TwitchGetBroadcaster().Format(),
                 beatmap.DisplayString
             );
         }
 
         return string.Format(
-            UserConfig.LookupScoreResultFormat,
+            UserConfig.Config.LookupScoreResultFormat,
             beatmap.DisplayString,
             score.GetDifficultyShortForm(),
             score.GetFormattedScore(),
@@ -308,17 +308,17 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         {
             Logger.LogWarn($"Non-moderator ({approver.Format()}) attempted !bsrbump.");
 
-            return UserConfig.NonModeratorBumpMessage;
+            return UserConfig.Config.NonModeratorBumpMessage;
         }
 
         if (_beatSaberService.Queue is not { Count: > 0 } queue)
         {
-            return UserConfig.QueueEmptyMessage;
+            return UserConfig.Config.QueueEmptyMessage;
         }
 
         if (context is not { Input0: { } input0 })
         {
-            return UserConfig.BlankInputBumpMessage;
+            return UserConfig.Config.BlankInputBumpMessage;
         }
 
         if (GetQueueItem(queue, id: input0) is { } queueItemById)
@@ -328,7 +328,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         if (cph.GetUser<BaseUserInfo>(input0) is not { } user)
         {
-            return string.Format(UserConfig.InvalidInputBumpFormat, input0);
+            return string.Format(UserConfig.Config.InvalidInputBumpFormat, input0);
         }
 
         if (GetQueueItem(queue, user: user) is { } queueItemByUser)
@@ -341,7 +341,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             );
         }
 
-        return string.Format(UserConfig.UserHasNoRequestsFormat, user.Format(), "does");
+        return string.Format(UserConfig.Config.UserHasNoRequestsFormat, user.Format(), "does");
     }
 
     private string HandleStateCommand(ActionContext context)
@@ -369,8 +369,8 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             cph.SetCommandState(commandId, state);
 
         return state
-            ? UserConfig.StateCommandEnabledMessage
-            : UserConfig.StateCommandDisabledMessage;
+            ? UserConfig.Config.StateCommandEnabledMessage
+            : UserConfig.Config.StateCommandDisabledMessage;
     }
 
     private string HandleCaptureBeatLeaderId(ActionContext context)
@@ -394,10 +394,10 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         Logger.Log($"{nameof(HandleRaidRequest)} triggered by raider: {raider.Format()}.");
 
-        if (UserConfig.BumpNextRequestFromRaider is false and var bumpConfig)
+        if (UserConfig.Config.BumpNextRequestFromRaider is false and var bumpConfig)
         {
             Logger.Log(
-                $"Ignoring raid request from {raider.Format()} because {nameof(UserConfig.BumpNextRequestFromRaider)} is {bumpConfig}."
+                $"Ignoring raid request from {raider.Format()} because {nameof(UserConfig.Config.BumpNextRequestFromRaider)} is {bumpConfig}."
             );
 
             return null;
@@ -454,14 +454,14 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             context,
             raider,
             request,
-            UserConfig.RaidRequestBumpMessage,
+            UserConfig.Config.RaidRequestBumpMessage,
             isRaidRequest: true
         );
     }
 
     private QueueItem FindRequestInQueue(BaseUserInfo user, string id)
     {
-        var maxAttemps = UserConfig.BumpValidationAttempts;
+        var maxAttemps = UserConfig.Config.BumpValidationAttempts;
 
         for (var attempt = 1; attempt <= maxAttemps; attempt++)
         {
@@ -493,12 +493,12 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             if (!isLastAttempt)
             {
                 Logger.Log($"Waiting {maxAttemps.Format()}ms before next check.");
-                cph.Wait(UserConfig.BumpValidationDelayMs);
+                cph.Wait(UserConfig.Config.BumpValidationDelayMs);
             }
         }
 
         Logger.LogWarn(
-            $"Failed to find {user.Format()}'s request in queue after {"attempt".Pluralize(UserConfig.BumpValidationAttempts)}."
+            $"Failed to find {user.Format()}'s request in queue after {"attempt".Pluralize(UserConfig.Config.BumpValidationAttempts)}."
         );
 
         return default;
@@ -529,7 +529,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         Logger.Log($"Attempting to bump {bumpInfo} using \"{mttMessage}\".");
         context.SendResponse(mttMessage, neverSendAsReply: true, neverSendAsWhisper: true);
 
-        for (var attempt = 1; attempt <= UserConfig.BumpValidationAttempts; attempt++)
+        for (var attempt = 1; attempt <= UserConfig.Config.BumpValidationAttempts; attempt++)
         {
             var refreshedRequest = GetQueueItem(user: request.User, id: request.Id);
 
@@ -540,7 +540,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
                 return GetSongBumpMessage(requestor, request, bumpMessage, approver, isRaidRequest);
             }
 
-            var isLastAttempt = attempt == UserConfig.BumpValidationAttempts;
+            var isLastAttempt = attempt == UserConfig.Config.BumpValidationAttempts;
             var logMessage = string.Format(
                 "After {0} attempt, request for {1} {2}. {3} remaining.",
                 attempt.ToOrdinal(),
@@ -548,7 +548,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
                 refreshedRequest is null
                     ? "was not found in the queue"
                     : $"was found in the queue at position: {refreshedRequest.Position}.",
-                "attempt".Pluralize(UserConfig.BumpValidationAttempts - attempt)
+                "attempt".Pluralize(UserConfig.Config.BumpValidationAttempts - attempt)
             );
 
             Logger.LogWarn(logMessage);
@@ -556,18 +556,18 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             if (!isLastAttempt)
             {
                 Logger.Log(
-                    $" Waiting {UserConfig.BumpValidationDelayMs.Format()}ms before next check."
+                    $" Waiting {UserConfig.Config.BumpValidationDelayMs.Format()}ms before next check."
                 );
-                cph.Wait(UserConfig.BumpValidationDelayMs);
+                cph.Wait(UserConfig.Config.BumpValidationDelayMs);
             }
         }
 
         Logger.LogError(
-            $"Failed to verify {bumpInfo} after {"attempt".Pluralize(UserConfig.BumpValidationAttempts)}."
+            $"Failed to verify {bumpInfo} after {"attempt".Pluralize(UserConfig.Config.BumpValidationAttempts)}."
         );
 
         return string.Format(
-            UserConfig.SongBumpFailureFormat,
+            UserConfig.Config.SongBumpFailureFormat,
             request.Format(withPosition: false, withUser: true)
         );
     }
@@ -586,7 +586,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         }
 
         return string.Format(
-            UserConfig.SongMessageFormat,
+            UserConfig.Config.SongMessageFormat,
             request.Id,
             detail,
             requestor.Format(),
