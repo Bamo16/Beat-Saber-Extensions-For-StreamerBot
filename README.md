@@ -36,6 +36,7 @@
 ### [0.2.0] - 2026-05-08
 
 * **Breaking change**: Configuration moved out of StreamerBot action arguments and into a JSON config file (`BeatSaberExtensions.config.json`) at the StreamerBot working directory root. The file is created with all default values on first run; users with customized 0.1.x argument values must port them over to the new file. See [📁 Configuration File](#-configuration-file).
+* Fixed BeatSaberPlus blacklist not being honored. The plugin's `Database.json` field was renamed to `blocklist`, but our parser was still expecting `blacklist`, so the blacklist check silently let every blocked BSR ID through. Thanks @HakuTheWolfSpirit for the catch (#5).
 * Fixed `NullReferenceException` in `!bsrwhen` when any queued beatmap could not be retrieved from BeatSaver (transient outage, deleted/unpublished maps, etc.). Missing beatmaps no longer take down the entire response.
 * Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate. The configured value is now added to every queued song as documented.
 * Reworked the BeatSaver cache so a failed refresh fetch retains the existing stale entry instead of dropping it. Eviction also now correctly triggers on the eviction threshold rather than the refresh threshold.
