@@ -22,14 +22,29 @@
 * [🧵 Commands](#-commands)
   * [🎮 General Chat Commands](#-general-chat-commands)
   * [🛡️ Moderator-Only Commands](#️-moderator-only-commands)
+  * [🪵 Log Inspection](#-log-inspection)
 * [📩 Responses via Bot Whispers](#-responses-via-bot-whispers)
 * [⚡ Triggering Song Bumps From Your Own Actions](#-triggering-song-bumps-from-your-own-actions)
-* [📦 User-Configurable Messages \& Settings](#-user-configurable-messages--settings)
+* [📁 Configuration File](#-configuration-file)
+* [📦 Configurable Messages \& Settings](#-configurable-messages--settings)
 * [📝 Logging](#-logging)
 * [🧪 Building/Modifying](#-buildingmodifying)
 * [🔧 Troubleshooting](#-troubleshooting)
 
 ## 📜 Changelog
+
+### [0.2.0] - 2026-05-08
+
+* **Breaking change**: Configuration moved out of StreamerBot action arguments and into a JSON config file (`BeatSaberExtensions.config.json`) at the StreamerBot working directory root. The file is created with all default values on first run; users with customized 0.1.x argument values must port them over to the new file. See [📁 Configuration File](#-configuration-file).
+* Fixed `NullReferenceException` in `!bsrwhen` when any queued beatmap could not be retrieved from BeatSaver (transient outage, deleted/unpublished maps, etc.). Missing beatmaps no longer take down the entire response.
+* Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate. The configured value is now added to every queued song as documented.
+* Reworked the BeatSaver cache so a failed refresh fetch retains the existing stale entry instead of dropping it. Eviction also now correctly triggers on the eviction threshold rather than the refresh threshold.
+* Fixed `!bsrlogs show <index>` reading the wrong input slot, which previously made the index argument inert.
+* Fixed `KeepRecentErrorCount` not actually controlling how many recent exceptions are retained.
+* Fixed `AllowBotWhispers` always reading its hardcoded default value because it had been declared as a field initializer instead of a property.
+* Tightened the non-moderator branch of the `!bsrlogs add`/`remove` permission check.
+* Documented the previously-undocumented `!bsrlogs` command.
+* Renamed config keys to drop typos: `KeeoRecentErrorCount` → `KeepRecentErrorCount`, `MinimumimumAgeDays` → `MinimumAgeDays`.
 
 ### [0.1.3] - 2025-09-09
 
@@ -67,6 +82,7 @@
 
 * Copy StreamerBot Import String from [StreamerBot Import File](BeatSaberExtensions.sb) and paste into the `Import` menu in StreamerBot (or download the file and click+drag it into the import window).
 * Commands will be imported in a disabled state, so you will need to navigate to the `Commands` tab and enable all of the commands. They can all be found in the `Chat Commands - Beat Saber Extensions` subgroup in the commands tab.
+* The first time any command runs, **Beat Saber Extensions** will create a `BeatSaberExtensions.config.json` file in your StreamerBot folder (alongside the `.exe`). This file holds every user-configurable message and setting. See [📁 Configuration File](#-configuration-file) for details.
 * Check the [🔧 Troubleshooting](#-troubleshooting) section if you run into any issues.
 
 * Notes:
@@ -129,6 +145,18 @@ For commands accepting a `User` argument (`!bsrmyqueue`, `!bsrwhen`, `!bsrbump`)
 > [!Note]
 > Typically, when autocompleting the username for a chatter with a localized display name (Japanese/Chinese/Russian/etc.), most chat clients will autocomplete the user's display name. StreamerBot cannot identify users by display name alone, but **Beat Saber Extensions** automatically identifies users with special display names and keeps track of them using StreamerBot user groups so that localized display names can be used as input for commands.
 
+### 🪵 Log Inspection
+
+#### `!bsrlogs <subcommand>`
+
+The `!bsrlogs` command lets trusted users inspect recent **Beat Saber Extensions** error messages without needing access to the StreamerBot log file. By default, the command is gated by StreamerBot to moderators and members of the `BSR Extensions Log Users` group.
+
+| Subcommand              | Description |
+| ----------------------- | ----------- |
+| `show [index]`          | Show a recent exception. `index` is `0` for the most recent (the default), `1` for the next most recent, and so on. The number of exceptions retained is controlled by the `KeepRecentErrorCount` setting. |
+| `add <user>`            | Add a user to the `BSR Extensions Log Users` group so they can use `!bsrlogs`. Moderators and existing group members can add users. |
+| `remove <user>`         | Remove a user from the `BSR Extensions Log Users` group. |
+
 ## 📩 Responses via Bot Whispers
 
 > [!IMPORTANT]
@@ -148,11 +176,31 @@ If the user has multiple requests in the queue, the most recently added request 
 
 ![song bump trigger example 2](images/songbumptrigger2.png)
 
-## 📦 User-Configurable Messages & Settings
+## 📁 Configuration File
+
+Starting with version `0.2.0`, all user-configurable messages and settings live in a JSON file at the root of your StreamerBot folder (next to `Streamer.bot.exe`):
+
+```
+<StreamerBot folder>/BeatSaberExtensions.config.json
+```
+
+The file is created automatically on the first invocation of any **Beat Saber Extensions** command. It is populated with every setting at its default value, so you can open it in a text editor and see the full schema right away.
+
+* The file is reloaded on every command invocation, but the read is `mtime`-gated, so unchanged files do not trigger any re-parse work. Edits you make take effect on the next command.
+* If a key is missing from your file, the documented default is used.
+* If the file contains JSON that fails to parse, **Beat Saber Extensions** logs a warning and continues using the previously loaded values (or defaults on first run); no action is required to recover beyond fixing the JSON.
+* If you want to reset to defaults, delete the file and the next command invocation will regenerate it.
+
+> [!IMPORTANT]
+> **Upgrading from 0.1.x:** the old workflow stored these values as StreamerBot action arguments. Importing 0.2.0 does not migrate those values. After importing, edit `BeatSaberExtensions.config.json` to match any settings you had previously customized.
+
+## 📦 Configurable Messages & Settings
+
+The tables below list every key supported in `BeatSaberExtensions.config.json` along with its default value.
 
 ### Response Messages
 
-Argument Name                 | Description                                                                              | Default Value
+Setting Name                  | Description                                                                              | Default Value
 ----------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------
 `NotConfiguredMessage`        | Displayed when the action is used without ever starting Beat Saber                       | `The BeatSaber.BeatSaberRoot global variable is not currently configured. Please try running this command again while BeatSaber is running, and the variable will be set automatically.`
 `QueueEmptyMessage`           | Displayed by `!bsrmyqueue` and `!bsrwhen` when the queue is empty.                       | `There aren't currently any songs in the queue.`
@@ -169,7 +217,7 @@ Argument Name                 | Description                                     
 
 ### Response Format Strings
 
-Argument Name                | Description                                                                      | Default Value
+Setting Name                 | Description                                                                      | Default Value
 ---------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------
 `InvalidInputBumpFormat`     | Displayed when the `!basrbump` command is used with an argument that does not match any user or BSR ID. | `The provided value (\"{0}\") does not match any queued BSR Id, username, or displayname.🚫`
 `NoUserRequestsBumpFormat`   | Displayed when the `!basrbump` command is used to bump someone with no requests. | `There currently aren't any requests in the queue for {0}`
@@ -183,33 +231,32 @@ Argument Name                | Description                                      
 `WhenMessageFormat`          | Used to format the output of the `!bsrwhen` command.                             | `{0} is at position #{1}, and is playing in {2}.`
 
 
-### Song Bump Configuration Settings
-
-Argument Name                     | Description                                                                                 | Default Value
---------------------------------- | ------------------------------------------------------------------------------------------- | -------------
-`BumpValidationAttempts`          | How many times to attempt to validate if a song bump was processed.                         | `3`
-`BumpValidationDelayMs`           | Delay (in ms) between bump validation attempts.                                             | `4000`
-`BumpNextRequestFromRaider`       | When set to `true`, the first request from a raider will be bumped to the top of the queue. | `false`
-`ClearRaidRequestorsAfterMinutes` | When `BumpNextRequestFromRaider` is `true`, this setting determines how long a raid requestor will be remembered (in minutes) if the stream goes offline. | `30`
-`KeepRecentErrorCount`            | Number of recent error messages to retain for the `!bsrlogs` command.                       | `10`
-
 ### General Configuration Settings
 
-Argument Name                 | Description                                                           | Default Value
+Setting Name                  | Description                                                           | Default Value
 ----------------------------- | --------------------------------------------------------------------- | -------------
-`AllowBotWhispers`            | Controls if the bot should also respond to commands via whispers (allows !bsrqueue in whispers for non-mods). | `True`
-`UsernameDisplayMode`         | Specifies how usernames are shown. `UserLoginOnly`: "mecha_bamo", `DisplayNameOnly`: "爪モ匚卄丹_乃丹爪口", or `Dynamic` "mecha_bamo (爪モ匚卄丹_乃丹爪口)". | `UserLoginOnly`
+`AllowBotWhispers`            | Controls if the bot should also respond to commands via whispers (allows !bsrqueue in whispers for non-mods). | `true`
+`UsernameDisplayMode`         | Specifies how usernames are shown. `UserLoginOnly`: "mecha_bamo", `DisplayNameOnly`: "爪モ匚卄丹_乃丹爪口", or `Dynamic`: "mecha_bamo (爪モ匚卄丹_乃丹爪口)". | `UserLoginOnly`
 `DefaultQueueItemCount`       | Default number of items that can be shown by the `!bsrqueue` command. | `5`
 `MaximumQueueItemCount`       | Maximum number of items that can be shown by the `!bsrqueue` command. | `10`
 `BeatmapCacheDurationMinutes` | Duration (minutes) to cache beatmap data.                             | `30`
 `SecondsBetweenSongs`         | When calculating the estimated wait time for `!bsrwhen`, this is the amount of time added to each song to accommodate for time spent in menus or talking to chat. | `90`
+`KeepRecentErrorCount`        | Number of recent error messages to retain for the `!bsrlogs show` command. | `10`
+
+### Song Bump Configuration Settings
+
+Setting Name                      | Description                                                                                 | Default Value
+--------------------------------- | ------------------------------------------------------------------------------------------- | -------------
+`BumpValidationAttempts`          | How many times to attempt to validate if a song bump was processed.                         | `3`
+`BumpValidationDelayMs`           | Delay (in ms) between bump validation attempts.                                             | `4000`
+`BumpNextRequestFromRaider`       | When set to `true`, the first request from a raider will be bumped to the top of the queue. | `false`
 
 
 ### Beatmap Safe Mode Display Options
 
 The configuration options below control how beatmap info will be displayed when using commands that output beatmap information to chat. If a beatmap does not meet the criterea, then only the BSR ID will be shown. Otherwise, a combination of  `SongAuthorName` and `SongName` will be used.
 
-Argument Name            | Description                                                                             | Default Value
+Setting Name             | Description                                                                             | Default Value
 ------------------------ | --------------------------------------------------------------------------------------- | -------------
 `AlwaysShowWhenCurated`  | When set to `true`, any beatmap marked as being curated will be considered safe to display (regardless of other criterea). | `true`
 `MinimumAgeDays`         | Beatmaps uploaded more recently than this value will not have full beatmap info shown.  | `7`
