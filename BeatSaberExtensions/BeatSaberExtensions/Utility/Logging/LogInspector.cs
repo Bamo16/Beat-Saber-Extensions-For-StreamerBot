@@ -27,23 +27,30 @@ public static class LogInspector
             var cmd => $"Invalid subcommand: \"{cmd}\". Syntax: {CommandSyntax}",
         };
 
-    private static string HandleShowError(this ActionContext context) =>
-        UserConfig.RecentErrorMessages is { Count: var count and > 0 } recent
-        && context.GetErrorIndex(count) is { } index
-            ? string.Format(
-                "{0}: {1}",
-                index is 0 ? "Last Exception" : $"Exception {index}",
-                recent[index]
-            )
-            : "There are not any recent exceptions from Beat Saber Extensions.";
+    private static string HandleShowError(this ActionContext context)
+    {
+        if (UserConfig.RecentErrorMessages is not { Count: var count and > 0 } recent)
+        {
+            return "There are not any recent exceptions from Beat Saber Extensions.";
+        }
+
+        var index = context.GetErrorIndex(count);
+
+        return string.Format(
+            "{0}: {1}",
+            index is 0 ? "Last Exception" : $"Exception {index}",
+            recent[index]
+        );
+    }
 
     private static string HandleAddRemoveUser(this ActionContext context, bool shouldBelong)
     {
-        if (context is { CallerTwitch: { IsModerator: false } caller })
+        if (
+            context is { CallerTwitch: { IsModerator: false } caller }
+            && !context.CPH.CheckGroupMembership(caller, UserConfig.LogUsersGroup)
+        )
         {
-            return !context.CPH.CheckGroupMembership(caller, UserConfig.LogUsersGroup)
-                ? $"Only the broadcaster and channel moderators can manage the {UserConfig.LogUsersGroup} group."
-                : "You don't have permission to use this command!";
+            return $"Only moderators or members of the {UserConfig.LogUsersGroup} group can use this command.";
         }
 
         if (!context.TryGet("input1", out string lookup) || string.IsNullOrEmpty(lookup))
@@ -85,8 +92,7 @@ public static class LogInspector
     }
 
     private static int GetErrorIndex(this ActionContext context, int recentCount) =>
-        (context is { Input0: { } input0 } && int.TryParse(input0, out var i) ? i : 0).Clamp(
-            0,
-            recentCount - 1
-        );
+        (
+            context.TryGet("input1", out string input1) && int.TryParse(input1, out var i) ? i : 0
+        ).Clamp(0, recentCount - 1);
 }

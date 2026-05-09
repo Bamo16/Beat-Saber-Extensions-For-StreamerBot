@@ -167,7 +167,9 @@ public static class UserConfig
 
     public static void AddRecentExceptionMessage(string message) =>
         RecentErrorMessages = [
-            .. RecentErrorMessages.Take(9).Prepend($"[{DateTime.Now:MMM d HH:mm}] {message}"),
+            .. RecentErrorMessages
+                .Take(Math.Max(0, KeepRecentErrorCount - 1))
+                .Prepend($"[{DateTime.Now:MMM d HH:mm}] {message}"),
         ];
 
     public static string GetGlobalVarName([CallerMemberName] string memberName = null) =>
