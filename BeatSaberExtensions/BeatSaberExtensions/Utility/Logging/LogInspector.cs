@@ -21,10 +21,9 @@ public static class LogInspector
 
             "remove" or "removeuser" => context.HandleAddRemoveUser(false),
 
-            var cmd when string.IsNullOrEmpty(cmd) =>
-                $"You must provide a subcommand. Syntax: {CommandSyntax}",
+            { Length: > 0 } cmd => $"Invalid subcommand: \"{cmd}\". Syntax: {CommandSyntax}",
 
-            var cmd => $"Invalid subcommand: \"{cmd}\". Syntax: {CommandSyntax}",
+            _ => $"You must provide a subcommand. Syntax: {CommandSyntax}",
         };
 
     private static string HandleShowError(this ActionContext context)
