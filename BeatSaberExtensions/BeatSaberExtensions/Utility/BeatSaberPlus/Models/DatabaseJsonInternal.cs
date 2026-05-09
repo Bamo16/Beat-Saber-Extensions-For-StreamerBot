@@ -9,6 +9,8 @@ public class DatabaseJsonInternal
 {
     public ReadOnlyCollection<QueueItem> Queue { get; set; }
     public ReadOnlyCollection<BeatmapInternal> History { get; set; }
+
+    [JsonProperty("blocklist")]
     public ReadOnlyCollection<BeatmapInternal> Blacklist { get; set; }
 
     [JsonProperty("bannedusers")]
