@@ -6,6 +6,8 @@ namespace BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 public class BeatmapMetadata
 {
     public double Bpm { get; private set; }
+
+    [JsonProperty("duration")]
     public int DurationSeconds { get; private set; }
     public string SongName { get; private set; }
     public string SongSubName { get; private set; }

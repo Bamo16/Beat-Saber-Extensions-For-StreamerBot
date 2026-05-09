@@ -39,6 +39,8 @@
 * Fixed BeatSaberPlus blacklist not being honored due to a JSON field rename (`blacklist` → `blocklist`). Thanks @HakuTheWolfSpirit (#5).
 * Fixed `NullReferenceException` in `!bsrwhen` when a queued beatmap couldn't be fetched from BeatSaver.
 * Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate.
+* Fixed `BeatmapMetadata.DurationSeconds` always reading 0 because the JSON key from BeatSaver is `duration`, not `durationSeconds`. This caused every queued beatmap to fall back to BSR-id-only display (since the duration check in safe-mode display always failed) and broke the `!bsrwhen` wait estimate.
+* Fixed `TimeSpan.Format` inverting its precision filter, so the default formatting only showed seconds and dropped every coarser unit. (`270s` displayed as `"30 seconds"` instead of `"4 minutes and 30 seconds"`.)
 * Fixed `AllowBotWhispers`, `KeepRecentErrorCount`, and `!bsrlogs show <index>` not actually honoring their values.
 * Simplified the BeatSaver cache: failed refreshes now retain the existing entry instead of dropping it.
 * Documented the `!bsrlogs` command.
