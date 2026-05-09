@@ -35,16 +35,13 @@
 
 ### [0.2.0] - 2026-05-08
 
-* **Breaking change**: Configuration moved out of StreamerBot action arguments and into a JSON config file (`BeatSaberExtensions.config.json`) at the StreamerBot working directory root. The file is created with all default values on first run; users with customized 0.1.x argument values must port them over to the new file. See [📁 Configuration File](#-configuration-file).
-* Fixed BeatSaberPlus blacklist not being honored. The plugin's `Database.json` field was renamed to `blocklist`, but our parser was still expecting `blacklist`, so the blacklist check silently let every blocked BSR ID through. Thanks @HakuTheWolfSpirit for the catch (#5).
-* Fixed `NullReferenceException` in `!bsrwhen` when any queued beatmap could not be retrieved from BeatSaver (transient outage, deleted/unpublished maps, etc.). Missing beatmaps no longer take down the entire response.
-* Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate. The configured value is now added to every queued song as documented.
-* Simplified the BeatSaver cache. Beatmap entries are now refreshed every `BeatmapCacheDurationMinutes` on access; if a refresh fetch fails, the existing entry stays put and is returned to the caller. Time-based eviction was removed entirely — a few KB per entry × the number of unique BSR IDs in a session is a non-problem, and the previous eviction logic actively undermined the stale-on-error fallback by removing entries before the next refresh attempt could run.
-* Fixed `!bsrlogs show <index>` reading the wrong input slot, which previously made the index argument inert.
-* Fixed `KeepRecentErrorCount` not actually controlling how many recent exceptions are retained.
-* Fixed `AllowBotWhispers` always reading its hardcoded default value because it had been declared as a field initializer instead of a property.
-* Tightened the non-moderator branch of the `!bsrlogs add`/`remove` permission check.
-* Documented the previously-undocumented `!bsrlogs` command.
+* **Breaking change**: configuration moved from StreamerBot action arguments to `BeatSaberExtensions.config.json` in the StreamerBot folder. See [📁 Configuration File](#-configuration-file).
+* Fixed BeatSaberPlus blacklist not being honored due to a JSON field rename (`blacklist` → `blocklist`). Thanks @HakuTheWolfSpirit (#5).
+* Fixed `NullReferenceException` in `!bsrwhen` when a queued beatmap couldn't be fetched from BeatSaver.
+* Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate.
+* Fixed `AllowBotWhispers`, `KeepRecentErrorCount`, and `!bsrlogs show <index>` not actually honoring their values.
+* Simplified the BeatSaver cache: failed refreshes now retain the existing entry instead of dropping it.
+* Documented the `!bsrlogs` command.
 * Renamed config keys to drop typos: `KeeoRecentErrorCount` → `KeepRecentErrorCount`, `MinimumimumAgeDays` → `MinimumAgeDays`.
 
 ### [0.1.3] - 2025-09-09
