@@ -52,7 +52,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         try
         {
             Logger.LogActionStart(context);
-            UserConfig.SetConfigValues(context);
+            UserConfig.LoadConfigValues();
 
             var message = context switch
             {
