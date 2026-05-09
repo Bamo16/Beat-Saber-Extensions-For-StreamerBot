@@ -31,23 +31,37 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
     {
         lock (_lock)
         {
-            var (cachedBeatmaps, idsToFetch) = GetCachedBeatmapsAndIdsToFetch(ids);
+            EvictExpiredBeatmaps();
 
-            return cachedBeatmaps
-                .Concat(FetchBeatmaps(idsToFetch))
+            var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(id => id.ToLower())
+                .ToList();
+
+            var idsToFetch = distinctIds
+                .Where(id =>
+                    !_cachedBeatmaps.TryGetValue(id, out var cached) || cached.ShouldRefresh
+                )
+                .ToList();
+
+            FetchBeatmaps(idsToFetch);
+
+            // Fall back to whatever is in the cache (possibly stale) when the fetch
+            // failed or returned nothing — stale info is far more useful than no info.
+            return distinctIds
+                .Where(_cachedBeatmaps.ContainsKey)
                 .ToDictionary(
-                    beatmap => beatmap.Id,
-                    beatmap => beatmap,
+                    id => id,
+                    id => _cachedBeatmaps[id],
                     StringComparer.OrdinalIgnoreCase
                 );
         }
     }
 
-    private IEnumerable<Beatmap> FetchBeatmaps(List<string> idsToFetch)
+    private void FetchBeatmaps(List<string> idsToFetch)
     {
         if (idsToFetch is not { Count: > 0 })
         {
-            return [];
+            return;
         }
 
         var beatmaps = idsToFetch is { Count: 1 }
@@ -74,40 +88,14 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
         {
             _cachedBeatmaps[beatmap.Id] = beatmap;
         }
-
-        return beatmaps;
     }
-
-    private (List<Beatmap> CachedBeatmaps, List<string> IdsToFetch) GetCachedBeatmapsAndIdsToFetch(
-        IEnumerable<string> ids
-    )
-    {
-        EvictExpiredBeatmaps();
-
-        var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase).Select(id => id.ToLower());
-        var cachedBeatmaps = new List<Beatmap>();
-        var idsToFetch = new List<string>();
-
-        foreach (var id in distinctIds)
-        {
-            if (IsCached(id, out var cached))
-                cachedBeatmaps.Add(cached);
-            else
-                idsToFetch.Add(id);
-        }
-
-        return (cachedBeatmaps, idsToFetch);
-    }
-
-    private bool IsCached(string id, out Beatmap beatmap) =>
-        _cachedBeatmaps.TryGetValue(id, out beatmap) && beatmap is { ShouldRefresh: false };
 
     private void EvictExpiredBeatmaps()
     {
         if (ShouldPerformCacheEviction)
         {
             _cachedBeatmaps
-                .Where(kvp => kvp.Value.ShouldRefresh)
+                .Where(kvp => kvp.Value.ShouldEvict)
                 .Select(kvp => kvp.Key)
                 .ToList()
                 .ForEach(id => _cachedBeatmaps.Remove(id));
