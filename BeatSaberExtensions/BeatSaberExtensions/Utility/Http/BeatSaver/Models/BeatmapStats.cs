@@ -2,9 +2,9 @@ namespace BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 
 public class BeatmapStats
 {
-    public int Plays { get; private set; }
-    public int Downloads { get; private set; }
-    public int Upvotes { get; private set; }
-    public int Downvotes { get; private set; }
-    public double Score { get; private set; }
+    public int Plays { get; set; }
+    public int Downloads { get; set; }
+    public int Upvotes { get; set; }
+    public int Downvotes { get; set; }
+    public double Score { get; set; }
 }

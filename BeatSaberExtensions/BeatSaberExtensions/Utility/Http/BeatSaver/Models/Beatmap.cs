@@ -9,20 +9,20 @@ namespace BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 
 public class Beatmap
 {
-    public string Id { get; private set; }
-    public string Name { get; private set; }
-    public string Description { get; private set; }
-    public BeatmapMetadata Metadata { get; private set; }
-    public BeatmapStats Stats { get; private set; }
-    public ReadOnlyCollection<string> Tags { get; private set; } = new([]);
-    public DateTime UpdatedAt { get; private set; }
-    public DateTime Uploaded { get; private set; }
-    public bool Automapper { get; private set; }
-    public bool Ranked { get; private set; }
-    public bool Qualified { get; private set; }
-    public ReadOnlyCollection<BeatmapVersion> Versions { get; private set; } = new([]);
-    public DateTime? CuratedAt { get; private set; }
-    public DateTime DeletedAt { get; private set; }
+    public string Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public BeatmapMetadata Metadata { get; set; }
+    public BeatmapStats Stats { get; set; }
+    public ReadOnlyCollection<string> Tags { get; set; } = new([]);
+    public DateTime UpdatedAt { get; set; }
+    public DateTime Uploaded { get; set; }
+    public bool Automapper { get; set; }
+    public bool Ranked { get; set; }
+    public bool Qualified { get; set; }
+    public ReadOnlyCollection<BeatmapVersion> Versions { get; set; } = new([]);
+    public DateTime? CuratedAt { get; set; }
+    public DateTime DeletedAt { get; set; }
 
     private BeatmapVersion _latestVersion;
 

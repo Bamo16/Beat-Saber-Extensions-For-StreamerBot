@@ -33,18 +33,15 @@
 
 ## 📜 Changelog
 
-### [0.2.0] - 2026-05-08
+### [0.2.0] - 2026-05-12
 
 * **Breaking change**: configuration moved from StreamerBot action arguments to `BeatSaberExtensions.config.json` in the StreamerBot folder. See [📁 Configuration File](#-configuration-file).
-* Fixed BeatSaberPlus blacklist not being honored due to a JSON field rename (`blacklist` → `blocklist`). Thanks @HakuTheWolfSpirit (#5).
+* Fixed BeatSaver responses being mostly empty (Beatmap titles, durations, scores, etc. all defaulted to null/0). This had been broken since 0.1.3 and was the root cause of beatmaps displaying as BSR id only and wait estimates being wrong. Thanks @HakuTheWolfSpirit for the related blacklist→blocklist fix (#5).
 * Fixed `NullReferenceException` in `!bsrwhen` when a queued beatmap couldn't be fetched from BeatSaver.
 * Fixed `SecondsBetweenSongs` not being applied to the `!bsrwhen` wait estimate.
-* Fixed `BeatmapMetadata.DurationSeconds` always reading 0 because the JSON key from BeatSaver is `duration`, not `durationSeconds`. This caused every queued beatmap to fall back to BSR-id-only display (since the duration check in safe-mode display always failed) and broke the `!bsrwhen` wait estimate.
-* Fixed `TimeSpan.Format` inverting its precision filter, so the default formatting only showed seconds and dropped every coarser unit. (`270s` displayed as `"30 seconds"` instead of `"4 minutes and 30 seconds"`.)
 * Fixed `AllowBotWhispers`, `KeepRecentErrorCount`, and `!bsrlogs show <index>` not actually honoring their values.
-* Simplified the BeatSaver cache: failed refreshes now retain the existing entry instead of dropping it.
+* Reworked the BeatSaver cache so failed refreshes retain the existing entry instead of dropping it.
 * Documented the `!bsrlogs` command.
-* Renamed config keys to drop typos: `KeeoRecentErrorCount` → `KeepRecentErrorCount`, `MinimumimumAgeDays` → `MinimumAgeDays`.
 
 ### [0.1.3] - 2025-09-09
 
@@ -198,44 +195,20 @@ The file is created automatically on the first invocation of any **Beat Saber Ex
 
 The tables below list every key supported in `BeatSaberExtensions.config.json` along with its default value.
 
-### Response Messages
+### Customizable Messages
 
-Setting Name                  | Description                                                                              | Default Value
------------------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------
-`NotConfiguredMessage`        | Displayed when the action is used without ever starting Beat Saber                       | `The BeatSaber.BeatSaberRoot global variable is not currently configured. Please try running this command again while BeatSaber is running, and the variable will be set automatically.`
-`QueueEmptyMessage`           | Displayed by `!bsrmyqueue` and `!bsrwhen` when the queue is empty.                       | `There aren't currently any songs in the queue.`
-`NonModeratorBumpMessage`     | Displayed when `!bsrbump` is used by a non-moderator.                                    | `Only moderators can use the !bsrbump command.🚫`
-`BlankInputBumpMessage`       | Displayed when `!bsrbump` is used without providing any input.                           | `You must provide either a BSR Id, username, or displayname for the !bsrbump command.🚫`
-`FailedToGetBeatLeaderIdMessage` | Displayed when an attempt to retrieve the player's BeatLeader ID fails.               | `Failed to get BeatLeader Id from BeatSaberPlus.`
-`LookupMissingBsrIdMessage`   | Displayed when `!bsrlookup` command is used without providing any input.                 | `You must provide a BSR Id with !bsrlookup.`
-`QueueStatusOpenMessage`      | Displayed at the beginning of the `!bsrqueue` command's output when the queue is open.   | `Queue Status: OPEN✅`
-`QueueStatusClosedMessage`    | Displayed at the beginning of the `!bsrqueue` command's output when the queue is closed. | `Queue Status: CLOSED🚫`
-`StateCommandEnabledMessage`  | Displayed when the `!bsrenable` command is used.                                         | `Enabled Non-mod commands.`
-`StateCommandDisabledMessage` | Displayed when the `!bsrenable` command is used.                                         | `Disabled Non-mod commands.`
-`RaidRequestBumpMessage`      | Displayed as the song message attached to a bumped raid request.                         | `Raid request bump`
-
-
-### Response Format Strings
-
-Setting Name                 | Description                                                                      | Default Value
----------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------
-`InvalidInputBumpFormat`     | Displayed when the `!basrbump` command is used with an argument that does not match any user or BSR ID. | `The provided value (\"{0}\") does not match any queued BSR Id, username, or displayname.🚫`
-`NoUserRequestsBumpFormat`   | Displayed when the `!basrbump` command is used to bump someone with no requests. | `There currently aren't any requests in the queue for {0}`
-`SongBumpFailureFormat`      | Displayed when the `!bsrbump` command is not able to confirm success.            | `Couldn't verify song bump success. Please confirm that {0} was bumped to the top.⚠️`
-`SongMessageFormat`          | Template used to format the song message used with a song bump.                  | `!songmsg {0} {1} for {2} approved by {3}`
-`LookupInvalidBsrIdFormat`   | Used when an invalid BSR ID is provided to `!bsrlookup`.                         | `Invalid beatmap id: \"{0}\".`
-`LookupBeatmapNoFoundFormat` | Displayed when there is no beatmap associated with a BSRID            | `Failed to find beatmap for id: "{0}".`
-`UserHasNoRequestsFormat`    | Used when `!bsrwhen`, `!bsrmyqueue`, or `!bsrbump` is used for a user with no requests in the queue. | `{0} {1} not currently have any requests in the queue.`
-`LookupNoRecentScoresFormat` | Used when the `!bsrlookup` command is called with a valid BSR ID, but no recent scores were found for the user. | `Didn't find any recent scores by {0} on {1}.`
-`LookupScoreResultFormat`    | Used to format the output the score from a successful `!bsrlookup` command.      | `Beatmap: {0} ({1}) ❙ {2}, played {3}.`
-`WhenMessageFormat`          | Used to format the output of the `!bsrwhen` command.                             | `{0} is at position #{1}, and is playing in {2}.`
-
+Setting Name                 | Description                                                                              | Default Value
+---------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------
+`QueueStatusOpenMessage`     | Displayed at the beginning of the `!bsrqueue` command's output when the queue is open.   | `Queue Status: OPEN✅`
+`QueueStatusClosedMessage`   | Displayed at the beginning of the `!bsrqueue` command's output when the queue is closed. | `Queue Status: CLOSED🚫`
+`SongMessageFormat`          | Template used when sending `!songmsg` to BeatSaberPlus after a bump. Args: `{0}`=BSR Id, `{1}`=detail, `{2}`=requestor, `{3}`=approver. | `!songmsg {0} {1} for {2} approved by {3}`
 
 ### General Configuration Settings
 
 Setting Name                  | Description                                                           | Default Value
 ----------------------------- | --------------------------------------------------------------------- | -------------
-`AllowBotWhispers`            | Controls if the bot should also respond to commands via whispers (allows !bsrqueue in whispers for non-mods). | `true`
+`AllowBotWhispers`            | When `true`, the bot accepts whispered commands and replies via whisper. When `false`, whispered commands are ignored entirely (no chat fallback). | `true`
+`AllowNonModBsrQueueInChat`   | When `true`, non-moderators can use `!bsrqueue` in chat. When `false` (default), `!bsrqueue` in chat is moderator-only. The whisper path is governed separately by `AllowBotWhispers`. | `false`
 `UsernameDisplayMode`         | Specifies how usernames are shown. `UserLoginOnly`: "mecha_bamo", `DisplayNameOnly`: "爪モ匚卄丹_乃丹爪口", or `Dynamic`: "mecha_bamo (爪モ匚卄丹_乃丹爪口)". | `UserLoginOnly`
 `DefaultQueueItemCount`       | Default number of items that can be shown by the `!bsrqueue` command. | `5`
 `MaximumQueueItemCount`       | Maximum number of items that can be shown by the `!bsrqueue` command. | `10`

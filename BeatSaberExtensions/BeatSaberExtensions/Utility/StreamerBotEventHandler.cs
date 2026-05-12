@@ -54,6 +54,18 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             Logger.LogActionStart(context);
             UserConfig.LoadConfigValues();
 
+            if (
+                context is { CommandType: CommandType.BotWhisper }
+                && !UserConfig.Config.AllowBotWhispers
+            )
+            {
+                Logger.Log(
+                    $"Ignoring whispered command from {context.Caller?.Format()} because AllowBotWhispers is false."
+                );
+                executeSuccess = true;
+                return true;
+            }
+
             var message = context switch
             {
                 _ when isCustomBump => HandleBumpRequestEvent(context),
@@ -96,9 +108,9 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             {
                 { Queue: { Count: > 0 } queue } => GetQueueItem(queue, user) is { } request
                     ? ProcessSongBump(context, user, request)
-                    : string.Format(UserConfig.Config.UserHasNoRequestsFormat, user.Format(), "does"),
+                    : $"{user.Format()} does not currently have any requests in the queue.",
 
-                _ => UserConfig.Config.QueueEmptyMessage,
+                _ => "There aren't currently any songs in the queue.",
             };
         }
 
@@ -152,14 +164,17 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             context,
             raider,
             request,
-            UserConfig.Config.RaidRequestBumpMessage,
+            "Raid request bump",
             isRaidRequest: true
         );
     }
 
     private string HandleQueueCommand(ActionContext context)
     {
-        if (context is { CallerIsMod: false, CommandType: not CommandType.BotWhisper })
+        if (
+            context is { CallerIsMod: false, CommandType: not CommandType.BotWhisper }
+            && !UserConfig.Config.AllowNonModBsrQueueInChat
+        )
         {
             Logger.LogWarn(
                 $"Ignoring command: \"{context.Command}\" from {context.Caller.Format()} because they are not a moderator."
@@ -169,7 +184,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         if (_beatSaberService is not { Queue: { Count: > 0 } queue })
         {
-            return UserConfig.Config.QueueEmptyMessage;
+            return "There aren't currently any songs in the queue.";
         }
 
         var max = context
@@ -189,7 +204,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     {
         if (_beatSaberService is not { Queue: { Count: > 0 } queue })
         {
-            return UserConfig.Config.QueueEmptyMessage;
+            return "There aren't currently any songs in the queue.";
         }
 
         var user = context.GetUserFromArgs<BaseUserInfo>("input0", "userId");
@@ -199,11 +214,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             .Select(item => item.Format(withPosition: true, withUser: false));
 
         return !userRequests.Any()
-            ? string.Format(
-                UserConfig.Config.UserHasNoRequestsFormat,
-                isCaller ? "You" : user.Format(),
-                isCaller ? "do" : "does"
-            )
+            ? $"{(isCaller ? "You" : user.Format())} {(isCaller ? "do" : "does")} not currently have any requests in the queue."
             : userRequests.FormatMultilineChatMessage(
                 context,
                 header: isCaller ? "Your Requests:" : $"{user.Format()}'s Requests:"
@@ -214,25 +225,15 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     {
         if (_beatSaberService is not { Queue: { Count: > 0 } queue })
         {
-            return UserConfig.Config.QueueEmptyMessage;
+            return "There aren't currently any songs in the queue.";
         }
 
         var user = context.GetUserFromArgs<BaseUserInfo>("input0", "userId");
         var isCaller = context.IsCaller(user);
 
         return GetQueueItem(queue, user, first: true) is not { } request
-            ? string.Format(
-                UserConfig.Config.UserHasNoRequestsFormat,
-                isCaller ? "You" : user.Format(),
-                isCaller ? "do" : "does"
-            )
-            : string.Format(
-                UserConfig.Config.WhenMessageFormat,
-                request.Format(withPosition: false, withUser: false),
-                request.Position,
-                queue.GetEstimatedWaitTime(request).Format(),
-                request is { SongMessage: { } msg } ? $" SongMsg: \"{msg}\"." : string.Empty
-            );
+            ? $"{(isCaller ? "You" : user.Format())} {(isCaller ? "do" : "does")} not currently have any requests in the queue."
+            : $"{request.Format(withPosition: false, withUser: false)} is at position #{request.Position}, and is playing in {queue.GetEstimatedWaitTime(request).Format()}.";
     }
 
     private string HandleLastBeatmapCommand(ActionContext context)
@@ -257,22 +258,22 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
     {
         if (_beatSaberService is not { BeatLeaderId: { } beatLeaderId })
         {
-            return UserConfig.Config.FailedToGetBeatLeaderIdMessage;
+            return "Failed to get BeatLeader Id from BeatSaberPlus.";
         }
 
         if (!context.TryGet("input0", out string input))
         {
-            return UserConfig.Config.LookupMissingBsrIdMessage;
+            return "You must provide a BSR Id with !bsrlookup.";
         }
 
         if (_beatSaberService.GetBeatmapId(input) is not { } id)
         {
-            return string.Format(UserConfig.Config.LookupInvalidBsrIdFormat, input);
+            return $"Invalid beatmap id: \"{input}\".";
         }
 
         if (_beatSaberService.BeatSaverClient.GetBeatmap(id) is not { } beatmap)
         {
-            return string.Format(UserConfig.Config.LookupBeatmapNoFoundFormat, id);
+            return $"Failed to find beatmap for id: \"{id}\".";
         }
 
         var score = _beatSaberService.BeatLeaderClient.GetBeatLeaderRecentScore(
@@ -282,20 +283,10 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         if (score is not { Timestamp: { } timestamp })
         {
-            return string.Format(
-                UserConfig.Config.LookupNoRecentScoresFormat,
-                cph.TwitchGetBroadcaster().Format(),
-                beatmap.DisplayString
-            );
+            return $"Didn't find any recent scores by {cph.TwitchGetBroadcaster().Format()} on {beatmap.DisplayString}.";
         }
 
-        return string.Format(
-            UserConfig.Config.LookupScoreResultFormat,
-            beatmap.DisplayString,
-            score.GetDifficultyShortForm(),
-            score.GetFormattedScore(),
-            timestamp.ToCurrentDateAwareFriendlyFormat()
-        );
+        return $"Beatmap: {beatmap.DisplayString} ({score.GetDifficultyShortForm()}) ❙ {score.GetFormattedScore()}, played {timestamp.ToCurrentDateAwareFriendlyFormat()}.";
     }
 
     private string HandleBumpCommand(ActionContext context)
@@ -308,17 +299,17 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         {
             Logger.LogWarn($"Non-moderator ({approver.Format()}) attempted !bsrbump.");
 
-            return UserConfig.Config.NonModeratorBumpMessage;
+            return "Only moderators can use the !bsrbump command.🚫";
         }
 
         if (_beatSaberService.Queue is not { Count: > 0 } queue)
         {
-            return UserConfig.Config.QueueEmptyMessage;
+            return "There aren't currently any songs in the queue.";
         }
 
         if (context is not { Input0: { } input0 })
         {
-            return UserConfig.Config.BlankInputBumpMessage;
+            return "You must provide either a BSR Id, username, or displayname for the !bsrbump command.🚫";
         }
 
         if (GetQueueItem(queue, id: input0) is { } queueItemById)
@@ -328,7 +319,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         if (cph.GetUser<BaseUserInfo>(input0) is not { } user)
         {
-            return string.Format(UserConfig.Config.InvalidInputBumpFormat, input0);
+            return $"The provided value (\"{input0}\") does not match any queued BSR Id, username, or displayname.🚫";
         }
 
         if (GetQueueItem(queue, user: user) is { } queueItemByUser)
@@ -341,7 +332,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             );
         }
 
-        return string.Format(UserConfig.Config.UserHasNoRequestsFormat, user.Format(), "does");
+        return $"{user.Format()} does not currently have any requests in the queue.";
     }
 
     private string HandleStateCommand(ActionContext context)
@@ -368,9 +359,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         foreach (var commandId in UserConfig.NonModCommandIds)
             cph.SetCommandState(commandId, state);
 
-        return state
-            ? UserConfig.Config.StateCommandEnabledMessage
-            : UserConfig.Config.StateCommandDisabledMessage;
+        return state ? "Enabled Non-mod commands." : "Disabled Non-mod commands.";
     }
 
     private string HandleCaptureBeatLeaderId(ActionContext context)
@@ -411,7 +400,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         if (context.RawInput.MatchBsrRequest() is not { } bsrId)
         {
             throw new InvalidOperationException(
-                $"Failed to handle raid request for {raider.Format()} because the BSR Id could not be parsed from rawInput: \"{context.Get<string>("rawInput")}\"."
+                $"Failed to handle raid request for {raider.Format()} because the BSR Id could not be parsed from rawInput: \"{context.RawInput}\"."
             );
         }
 
@@ -454,7 +443,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             context,
             raider,
             request,
-            UserConfig.Config.RaidRequestBumpMessage,
+            "Raid request bump",
             isRaidRequest: true
         );
     }
@@ -566,10 +555,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             $"Failed to verify {bumpInfo} after {"attempt".Pluralize(UserConfig.Config.BumpValidationAttempts)}."
         );
 
-        return string.Format(
-            UserConfig.Config.SongBumpFailureFormat,
-            request.Format(withPosition: false, withUser: true)
-        );
+        return $"Couldn't verify song bump success. Please confirm that {request.Format(withPosition: false, withUser: true)} was bumped to the top.⚠️";
     }
 
     private string GetSongBumpMessage(

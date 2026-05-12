@@ -44,12 +44,9 @@ public static class LogInspector
 
     private static string HandleAddRemoveUser(this ActionContext context, bool shouldBelong)
     {
-        if (
-            context is { CallerTwitch: { IsModerator: false } caller }
-            && !context.CPH.CheckGroupMembership(caller, UserConfig.LogUsersGroup)
-        )
+        if (context is { CallerTwitch.IsModerator: false })
         {
-            return $"Only moderators or members of the {UserConfig.LogUsersGroup} group can use this command.";
+            return $"Only moderators can manage the {UserConfig.LogUsersGroup} group.";
         }
 
         if (!context.TryGet("input1", out string lookup) || string.IsNullOrEmpty(lookup))

@@ -32,6 +32,22 @@ public static class DictionaryExtensions
             return value.PassesNullCheck();
         }
 
+        if (typeof(T) is { IsEnum: true } t)
+        {
+            try
+            {
+                value = (T)Enum.Parse(t, untypedValue.ToString(), ignoreCase: true);
+
+                return true;
+            }
+            catch
+            {
+                value = default;
+
+                return false;
+            }
+        }
+
         return untypedValue.TryConvert(out value) && value.PassesNullCheck();
     }
 
@@ -59,11 +75,6 @@ public static class DictionaryExtensions
         }
     }
 
-    private static bool PassesNullCheck<T>(this T value) =>
-        value switch
-        {
-            { } when typeof(T) != typeof(string) => true,
-            string str => !string.IsNullOrEmpty(str),
-            _ => false,
-        };
+    private static bool PassesNullCheck<T>(this T? value) =>
+        value is not null and not string { Length: 0 };
 }

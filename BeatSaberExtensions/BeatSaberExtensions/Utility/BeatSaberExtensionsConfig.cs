@@ -17,52 +17,21 @@ public class BeatSaberExtensionsConfig
             Converters = { new StringEnumConverter() },
         };
 
-    #region Response Messages
+    #region Customizable Messages
 
-    public string NotConfiguredMessage { get; set; } =
-        "The BeatSaber.BeatSaberRoot global variable is not currently configured. Please try running this command again while BeatSaber is running, and the variable will be set automatically.";
-    public string QueueEmptyMessage { get; set; } = "There aren't currently any songs in the queue.";
-    public string NonModeratorBumpMessage { get; set; } =
-        "Only moderators can use the !bsrbump command.🚫";
-    public string BlankInputBumpMessage { get; set; } =
-        "You must provide either a BSR Id, username, or displayname for the !bsrbump command.🚫";
-    public string FailedToGetBeatLeaderIdMessage { get; set; } =
-        "Failed to get BeatLeader Id from BeatSaberPlus.";
-    public string LookupMissingBsrIdMessage { get; set; } =
-        "You must provide a BSR Id with !bsrlookup.";
     public string QueueStatusOpenMessage { get; set; } = "Queue Status: OPEN✅";
     public string QueueStatusClosedMessage { get; set; } = "Queue Status: CLOSED🚫";
-    public string StateCommandEnabledMessage { get; set; } = "Enabled Non-mod commands.";
-    public string StateCommandDisabledMessage { get; set; } = "Disabled Non-mod commands.";
-    public string RaidRequestBumpMessage { get; set; } = "Raid request bump";
 
-    #endregion
-
-    #region Response Format Strings
-
-    public string InvalidInputBumpFormat { get; set; } =
-        "The provided value (\"{0}\") does not match any queued BSR Id, username, or displayname.🚫";
-    public string NoUserRequestsBumpFormat { get; set; } =
-        "There currently aren't any requests in the queue for {0}.";
-    public string SongBumpFailureFormat { get; set; } =
-        "Couldn't verify song bump success. Please confirm that {0} was bumped to the top.⚠️";
+    // Used to build the `!songmsg` command sent to BeatSaberPlus when a request
+    // is bumped. Format args: {0}=BSR Id, {1}=detail, {2}=requestor, {3}=approver.
     public string SongMessageFormat { get; set; } = "!songmsg {0} {1} for {2} approved by {3}";
-    public string LookupInvalidBsrIdFormat { get; set; } = "Invalid beatmap id: \"{0}\".";
-    public string LookupBeatmapNoFoundFormat { get; set; } = "Failed to find beatmap for id: \"{0}\".";
-    public string UserHasNoRequestsFormat { get; set; } =
-        "{0} {1} not currently have any requests in the queue.";
-    public string LookupNoRecentScoresFormat { get; set; } =
-        "Didn't find any recent scores by {0} on {1}.";
-    public string LookupScoreResultFormat { get; set; } =
-        "Beatmap: {0} ({1}) ❙ {2}, played {3}.";
-    public string WhenMessageFormat { get; set; } =
-        "{0} is at position #{1}, and is playing in {2}.";
 
     #endregion
 
     #region General Configuration Settings
 
     public bool AllowBotWhispers { get; set; } = true;
+    public bool AllowNonModBsrQueueInChat { get; set; } = false;
     public UsernameDisplayMode UsernameDisplayMode { get; set; } = UsernameDisplayMode.UserLoginOnly;
     public int DefaultQueueItemCount { get; set; } = 5;
     public int MaximumQueueItemCount { get; set; } = 10;
