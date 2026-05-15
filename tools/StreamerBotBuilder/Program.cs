@@ -1,8 +1,8 @@
-using BuildBeatSaberExtensions.Models;
 using CommandLine;
+using StreamerBotBuilder.Models;
 using TextCopy;
 
-namespace BuildBeatSaberExtensions;
+namespace StreamerBotBuilder;
 
 public class Program
 {
@@ -10,7 +10,11 @@ public class Program
         Parser
             .Default.ParseArguments<CommandLineOptions>(args)
             .WithNotParsed(errors => Environment.Exit(1))
-            .WithParsed(opts => ProcessProject(BuildConfig.LoadBuildConfig(opts.Path)));
+            .WithParsed(opts =>
+            {
+                var path = opts.Path ?? Directory.GetCurrentDirectory();
+                ProcessProject(BuildConfig.Load(path, opts));
+            });
 
     private static void ProcessProject(BuildConfig config)
     {
@@ -18,8 +22,7 @@ public class Program
 
         if (project is { BuildSuccess: false, Errors: { Count: { } count } errors })
         {
-            var message = $"Build failed with {count} compilation errors.";
-            Console.WriteLine($"{message}\n");
+            Console.WriteLine($"Build failed with {count} compilation errors.\n");
 
             foreach (var error in errors)
                 Console.WriteLine(error);

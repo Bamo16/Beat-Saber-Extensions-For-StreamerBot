@@ -1,4 +1,4 @@
-namespace BuildBeatSaberExtensions.Utility;
+namespace StreamerBotBuilder.Utility;
 
 public static class PathUtility
 {

@@ -1,21 +1,21 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
-using BuildBeatSaberExtensions.Utility;
+using StreamerBotBuilder.Utility;
 
-namespace BuildBeatSaberExtensions.Models;
+namespace StreamerBotBuilder.Models;
 
 [method: JsonConstructor]
 public class BuildConfig(
     List<string> namespaceOrder,
     List<string> excludeSubDirectories,
     bool copyToClipboard,
-    bool includeLogCommentsInOutput,
     List<string> additionalLogComments,
-    string outputFileName
+    string outputFileName,
+    List<string> csprojSubstitutions
 )
 {
-    private const string BuildConfigPath = "BuildConfig.json";
+    private const string BuildConfigFileName = "BuildConfig.json";
 
     private static readonly JsonSerializerOptions _jsonSerializerOptions =
         new JsonSerializerOptions() { PropertyNameCaseInsensitive = true };
@@ -23,47 +23,68 @@ public class BuildConfig(
     public string ProjectRootPath { get; private set; }
     public string RootNamespace { get; private set; }
     public string OutputFileName { get; private set; } = outputFileName;
+    public bool CopyToClipboard { get; private set; } = copyToClipboard;
+    public Dictionary<string, string> SubstitutionValues { get; private set; } = [];
 
     public List<string> ExcludeSubDirectories { get; } =
         GetExcludeSubDirectories(excludeSubDirectories);
     public List<string> NamespaceOrder { get; } = namespaceOrder ?? [];
-    public bool CopyToClipboard { get; } = copyToClipboard;
-    public bool IncludeLogCommentsInOutput { get; } = includeLogCommentsInOutput;
     public List<string> AdditionalLogComments { get; } = additionalLogComments ?? [];
+    public List<string> CsprojSubstitutions { get; } = csprojSubstitutions ?? [];
 
-    public static BuildConfig LoadBuildConfig(string projectRootPath)
+    public static BuildConfig Load(string projectRootPath, CommandLineOptions opts)
     {
-        var configFile = Path.Combine(projectRootPath, BuildConfigPath);
+        var configFile = Path.Combine(projectRootPath, BuildConfigFileName);
 
-        if (!File.Exists(configFile))
-        {
-            throw new FileNotFoundException($"{BuildConfigPath} not found.", configFile);
-        }
+        BuildConfig config = File.Exists(configFile)
+            ? JsonSerializer.Deserialize<BuildConfig>(
+                File.ReadAllText(configFile),
+                _jsonSerializerOptions
+            ) ?? throw new InvalidDataException($"Failed to deserialize {BuildConfigFileName}.")
+            : new BuildConfig(null, null, false, null, null, null);
 
-        var configContent = File.ReadAllText(configFile);
-        var config =
-            JsonSerializer.Deserialize<BuildConfig>(configContent, _jsonSerializerOptions)
-            ?? throw new InvalidDataException("Failed to deserialize BuildConfig.");
-        config.ProjectRootPath = projectRootPath;
-        config.RootNamespace = FindRootNamespace(projectRootPath);
-        config.OutputFileName = config is { OutputFileName: { } output }
-            ? PathUtility.ResolvePath(projectRootPath, output)
-            : null;
+        config.ProjectRootPath = Path.GetFullPath(projectRootPath);
+
+        var (rootNamespace, substitutionValues) = ReadCsprojValues(
+            projectRootPath,
+            config.CsprojSubstitutions
+        );
+        config.RootNamespace = rootNamespace;
+        config.SubstitutionValues = substitutionValues;
+
+        if (config.OutputFileName is { } outputFileName)
+            config.OutputFileName = PathUtility.ResolvePath(projectRootPath, outputFileName);
+
+        if (opts.CopyToClipboard)
+            config.CopyToClipboard = true;
+
+        if (opts.OutputFile is { } outputFile)
+            config.OutputFileName = PathUtility.ResolvePath(projectRootPath, outputFile);
 
         return config;
     }
 
-    private static string FindRootNamespace(string projectRootPath)
+    private static (
+        string RootNamespace,
+        Dictionary<string, string> SubstitutionValues
+    ) ReadCsprojValues(string projectRootPath, List<string> substitutionKeys)
     {
         var projectRoot = new DirectoryInfo(projectRootPath);
         var projectFilePath = FindProjectFile(projectRoot);
         var doc = XDocument.Load(projectFilePath);
         var msbuild = doc.Root.Name.Namespace;
 
-        return doc.Descendants(msbuild + "RootNamespace")
-            .Select(prop => prop.Value)
+        var rootNamespace = doc.Descendants(msbuild + "RootNamespace")
+            .Select(el => el.Value)
             .DefaultIfEmpty(projectRoot.Name)
-            .FirstOrDefault();
+            .First();
+
+        var substitutionValues = substitutionKeys
+            .Select(key => (key, value: doc.Descendants(msbuild + key).FirstOrDefault()?.Value))
+            .Where(pair => pair.value is not null)
+            .ToDictionary(pair => pair.key, pair => pair.value);
+
+        return (rootNamespace, substitutionValues);
     }
 
     private static string FindProjectFile(DirectoryInfo projectRoot) =>

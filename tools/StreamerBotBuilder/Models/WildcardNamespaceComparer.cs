@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace BuildBeatSaberExtensions.Models;
+namespace StreamerBotBuilder.Models;
 
 public class WildcardNamespaceComparer(IEnumerable<string> namespacePatterns)
     : IComparer<StreamerBotProjectCsFile>
