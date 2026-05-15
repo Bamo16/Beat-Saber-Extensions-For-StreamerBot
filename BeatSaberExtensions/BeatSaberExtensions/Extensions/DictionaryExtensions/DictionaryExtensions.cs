@@ -7,12 +7,6 @@ namespace BeatSaberExtensions.Extensions.DictionaryExtensions;
 
 public static class DictionaryExtensions
 {
-    public static T? Get<T>(
-        this IDictionary<string, object> args,
-        string key,
-        T? defaultValue = default
-    ) => args.TryGet(key, out T? value) ? value : defaultValue;
-
     public static bool TryGet<T>(this IDictionary<string, object> args, string key, out T? value)
     {
         if (string.IsNullOrEmpty(key))

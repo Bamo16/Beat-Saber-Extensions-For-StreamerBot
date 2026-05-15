@@ -4,20 +4,17 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Extensions.FormattableExtensions;
 using BeatSaberExtensions.Extensions.MatchExtensions;
-using BeatSaberExtensions.Utility.Arguments;
 
 namespace BeatSaberExtensions.Extensions.StringExtensions;
 
 public static class StringExtensions
 {
     private const int MaxChatMessageLength = 500;
-    private const int MaxWhisperLineLength = 32;
-    private const int MaxChatLineLength = 35;
+    private const int MaxChatItemLength = 60;
     private const string TruncationReplacement = "…";
-    private const char BraillePatternBlankChar = '\u2800';
+    private const string ChatItemSeparator = " \u2759 ";
 
     private static readonly string[] _dateTimeFormats =
     [
@@ -46,7 +43,6 @@ public static class StringExtensions
         ",
         RegexOptions.Compiled | RegexOptions.IgnorePatternWhitespace | RegexOptions.ExplicitCapture
     );
-    private static readonly Regex _whitespacePattern = new Regex(@"\s+", RegexOptions.Compiled);
     private static readonly Regex _requestPattern = new Regex(
         @"^(?:(?<Command>!bsr)(?:\s+))?(?<BsrId>[a-z0-9]{1,6})\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.ExplicitCapture
@@ -138,8 +134,10 @@ public static class StringExtensions
         var enumerator = StringInfo.GetTextElementEnumerator(sanitized);
 
         // Input is longer than maxLength. Truncate and append truncationReplacement.
-        while (enumerator.MoveNext() && enumerator.GetTextElement() is var element)
+        while (enumerator.MoveNext())
         {
+            var element = enumerator.GetTextElement();
+
             if (builder.Length + element.Length > targetLength)
             {
                 return builder.Append(trunc).ToString();
@@ -151,27 +149,23 @@ public static class StringExtensions
         return builder.Append(trunc).ToString();
     }
 
-    public static string FormatMultilineChatMessage(
-        this IEnumerable<string> chatLines,
-        ActionContext context,
+    // Joins a sequence of items into a single chat-friendly message. Each item is
+    // truncated to MaxChatItemLength so a single absurdly long song name can't
+    // dominate the message; the final string is then truncated to fit Twitch's
+    // 500-character cap. Twitch handles line wrapping itself based on its own
+    // rendering rules — we no longer try to control it.
+    public static string FormatChatItems(
+        this IEnumerable<string> items,
         string header = null,
-        string lineTruncationReplacement = TruncationReplacement,
-        string messageTruncationReplacement = TruncationReplacement,
-        char separatorChar = BraillePatternBlankChar
-    ) =>
-        string.Join(
-                "\n",
-                (header is null ? chatLines : chatLines.Prepend(header)).Select(line =>
-                    line.FormatChatMessageLine(
-                        lineTruncationReplacement,
-                        separatorChar,
-                        context is { CommandType: CommandType.BotWhisper } isWhisper
-                            ? MaxWhisperLineLength
-                            : MaxChatLineLength
-                    )
-                )
-            )
-            .Truncate(MaxChatMessageLength, messageTruncationReplacement);
+        string separator = ChatItemSeparator,
+        int maxItemLength = MaxChatItemLength
+    )
+    {
+        var body = string.Join(separator, items.Select(item => item.Truncate(maxItemLength)));
+        var combined = string.IsNullOrEmpty(header) ? body : $"{header} {body}";
+
+        return combined.Truncate(MaxChatMessageLength);
+    }
 
     public static string ReplaceVerticalWhitespace(this string input, string separator = " ") =>
         string.Join(separator, input.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries));
@@ -195,17 +189,4 @@ public static class StringExtensions
         string toCheck,
         StringComparison comparisonType
     ) => source?.IndexOf(toCheck, comparisonType) is >= 0;
-
-    private static string FormatChatMessageLine(
-        this string chatLine,
-        string truncationReplacement = TruncationReplacement,
-        char separatorChar = BraillePatternBlankChar,
-        int maxLineLength = MaxChatLineLength
-    ) =>
-        string.Join(
-                separatorChar.ToString(),
-                _whitespacePattern.Split(chatLine).Where(part => !string.IsNullOrEmpty(part))
-            )
-            .Truncate(maxLineLength, truncationReplacement)
-            .PadRight(maxLineLength, separatorChar);
 }

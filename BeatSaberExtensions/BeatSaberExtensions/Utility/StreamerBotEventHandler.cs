@@ -160,13 +160,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         Logger.Log($"Bumping existing request from raider: {raider.Format()}.");
 
-        return ProcessSongBump(
-            context,
-            raider,
-            request,
-            "Raid request bump",
-            isRaidRequest: true
-        );
+        return ProcessSongBump(context, raider, request, "Raid request bump", isRaidRequest: true);
     }
 
     private string HandleQueueCommand(ActionContext context)
@@ -197,7 +191,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
         return queue
             .Select(item => item.Format(withPosition: true, withUser: true))
             .Take(max)
-            .FormatMultilineChatMessage(context, header);
+            .FormatChatItems(header);
     }
 
     private string HandleMyQueueCommand(ActionContext context)
@@ -215,8 +209,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
 
         return !userRequests.Any()
             ? $"{(isCaller ? "You" : user.Format())} {(isCaller ? "do" : "does")} not currently have any requests in the queue."
-            : userRequests.FormatMultilineChatMessage(
-                context,
+            : userRequests.FormatChatItems(
                 header: isCaller ? "Your Requests:" : $"{user.Format()}'s Requests:"
             );
     }
@@ -439,13 +432,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
                     reason: "Failed to find raid request in queue."
                 );
 
-        return ProcessSongBump(
-            context,
-            raider,
-            request,
-            "Raid request bump",
-            isRaidRequest: true
-        );
+        return ProcessSongBump(context, raider, request, "Raid request bump", isRaidRequest: true);
     }
 
     private QueueItem FindRequestInQueue(BaseUserInfo user, string id)
@@ -470,7 +457,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             var isLastAttempt = attempt == maxAttemps;
             var logMessage = string.Format(
                 "{0} attempt to identify {1}'s request for BSR Id \"{2}\" was unsuccessful. There are currently {3} in the queue. {4} remaining.",
-                attempt.ToOrdinal(),
+                attempt.ToInvertedCircleNumber(),
                 user.Format(),
                 id,
                 "request".Pluralize(_beatSaberService.Queue.Count),
@@ -532,7 +519,7 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             var isLastAttempt = attempt == UserConfig.Config.BumpValidationAttempts;
             var logMessage = string.Format(
                 "After {0} attempt, request for {1} {2}. {3} remaining.",
-                attempt.ToOrdinal(),
+                attempt.ToInvertedCircleNumber(),
                 requestor.Format(),
                 refreshedRequest is null
                     ? "was not found in the queue"

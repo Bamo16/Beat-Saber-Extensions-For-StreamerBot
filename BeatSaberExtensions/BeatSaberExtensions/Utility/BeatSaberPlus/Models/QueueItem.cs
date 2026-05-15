@@ -54,7 +54,7 @@ public class QueueItem
 
     public string Format(bool withPosition, bool withUser) =>
         string.Concat(
-            withPosition ? $"{Position.ToOrdinal()} " : string.Empty,
+            withPosition ? $"{Position.ToInvertedCircleNumber()} " : string.Empty,
             withUser ? $"{User.Format()} " : string.Empty,
             Beatmap is { DisplayString: { } displayString } ? displayString : Id
         );
