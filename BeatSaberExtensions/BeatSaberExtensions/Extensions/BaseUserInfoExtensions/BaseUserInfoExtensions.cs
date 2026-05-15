@@ -11,7 +11,7 @@ public static class BaseUserInfoExtensions
     {
         return user is not { UserLogin: { } login, UserName: { } display }
             ? "UnknownUser"
-            : (Mode: mode ?? UserConfig.UsernameDisplayMode, Localized: user.IsLocalized()) switch
+            : (Mode: mode ?? UserConfig.Config.UsernameDisplayMode, Localized: user.IsLocalized()) switch
             {
                 // When mode is UserLoginOnly and DisplayName is localized, show LoginName
                 { Mode: UsernameDisplayMode.UserLoginOnly, Localized: true } => $"@{login}",

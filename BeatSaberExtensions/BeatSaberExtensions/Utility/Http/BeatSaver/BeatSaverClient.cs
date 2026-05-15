@@ -13,17 +13,10 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
 {
     private const string BeatSaverBaseUri = "https://api.beatsaver.com/";
 
-    private static readonly TimeSpan _cacheEvictionInterval = TimeSpan.FromMinutes(5);
-
     private readonly object _lock = new object();
     private readonly Dictionary<string, Beatmap> _cachedBeatmaps = new Dictionary<string, Beatmap>(
         StringComparer.OrdinalIgnoreCase
     );
-
-    private DateTime _lastCacheEvictionCheck = DateTime.MinValue;
-
-    private bool ShouldPerformCacheEviction =>
-        _lastCacheEvictionCheck + _cacheEvictionInterval <= DateTime.UtcNow;
 
     public Beatmap? GetBeatmap(string id) => GetBeatmaps([id]).Values.FirstOrDefault();
 
@@ -31,23 +24,35 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
     {
         lock (_lock)
         {
-            var (cachedBeatmaps, idsToFetch) = GetCachedBeatmapsAndIdsToFetch(ids);
+            var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(id => id.ToLower())
+                .ToList();
 
-            return cachedBeatmaps
-                .Concat(FetchBeatmaps(idsToFetch))
+            var idsToFetch = distinctIds
+                .Where(id =>
+                    !_cachedBeatmaps.TryGetValue(id, out var cached) || cached.ShouldRefresh
+                )
+                .ToList();
+
+            FetchBeatmaps(idsToFetch);
+
+            // Cache entries are kept indefinitely. A failed refresh leaves the
+            // existing entry intact; stale info is strictly better than nothing.
+            return distinctIds
+                .Where(_cachedBeatmaps.ContainsKey)
                 .ToDictionary(
-                    beatmap => beatmap.Id,
-                    beatmap => beatmap,
+                    id => id,
+                    id => _cachedBeatmaps[id],
                     StringComparer.OrdinalIgnoreCase
                 );
         }
     }
 
-    private IEnumerable<Beatmap> FetchBeatmaps(List<string> idsToFetch)
+    private void FetchBeatmaps(List<string> idsToFetch)
     {
         if (idsToFetch is not { Count: > 0 })
         {
-            return [];
+            return;
         }
 
         var beatmaps = idsToFetch is { Count: 1 }
@@ -73,46 +78,6 @@ public class BeatSaverClient(bool logWhenSuccessful = false)
         foreach (var beatmap in beatmaps)
         {
             _cachedBeatmaps[beatmap.Id] = beatmap;
-        }
-
-        return beatmaps;
-    }
-
-    private (List<Beatmap> CachedBeatmaps, List<string> IdsToFetch) GetCachedBeatmapsAndIdsToFetch(
-        IEnumerable<string> ids
-    )
-    {
-        EvictExpiredBeatmaps();
-
-        var distinctIds = ids.Distinct(StringComparer.OrdinalIgnoreCase).Select(id => id.ToLower());
-        var cachedBeatmaps = new List<Beatmap>();
-        var idsToFetch = new List<string>();
-
-        foreach (var id in distinctIds)
-        {
-            if (IsCached(id, out var cached))
-                cachedBeatmaps.Add(cached);
-            else
-                idsToFetch.Add(id);
-        }
-
-        return (cachedBeatmaps, idsToFetch);
-    }
-
-    private bool IsCached(string id, out Beatmap beatmap) =>
-        _cachedBeatmaps.TryGetValue(id, out beatmap) && beatmap is { ShouldRefresh: false };
-
-    private void EvictExpiredBeatmaps()
-    {
-        if (ShouldPerformCacheEviction)
-        {
-            _cachedBeatmaps
-                .Where(kvp => kvp.Value.ShouldRefresh)
-                .Select(kvp => kvp.Key)
-                .ToList()
-                .ForEach(id => _cachedBeatmaps.Remove(id));
-
-            _lastCacheEvictionCheck = DateTime.UtcNow;
         }
     }
 

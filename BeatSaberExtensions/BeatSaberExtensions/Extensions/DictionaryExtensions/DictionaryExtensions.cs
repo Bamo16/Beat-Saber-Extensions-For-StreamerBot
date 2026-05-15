@@ -7,12 +7,6 @@ namespace BeatSaberExtensions.Extensions.DictionaryExtensions;
 
 public static class DictionaryExtensions
 {
-    public static T? Get<T>(
-        this IDictionary<string, object> args,
-        string key,
-        T? defaultValue = default
-    ) => args.TryGet(key, out T? value) ? value : defaultValue;
-
     public static bool TryGet<T>(this IDictionary<string, object> args, string key, out T? value)
     {
         if (string.IsNullOrEmpty(key))
@@ -30,6 +24,22 @@ public static class DictionaryExtensions
         {
             value = typedValue;
             return value.PassesNullCheck();
+        }
+
+        if (typeof(T) is { IsEnum: true } t)
+        {
+            try
+            {
+                value = (T)Enum.Parse(t, untypedValue.ToString(), ignoreCase: true);
+
+                return true;
+            }
+            catch
+            {
+                value = default;
+
+                return false;
+            }
         }
 
         return untypedValue.TryConvert(out value) && value.PassesNullCheck();
@@ -59,11 +69,6 @@ public static class DictionaryExtensions
         }
     }
 
-    private static bool PassesNullCheck<T>(this T value) =>
-        value switch
-        {
-            { } when typeof(T) != typeof(string) => true,
-            string str => !string.IsNullOrEmpty(str),
-            _ => false,
-        };
+    private static bool PassesNullCheck<T>(this T? value) =>
+        value is not null and not string { Length: 0 };
 }

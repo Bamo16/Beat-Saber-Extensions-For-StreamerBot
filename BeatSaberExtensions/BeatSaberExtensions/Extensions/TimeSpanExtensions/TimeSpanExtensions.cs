@@ -16,7 +16,7 @@ public static class TimeSpanExtensions
             (TimeUnit.Minute, timeSpan.Minutes),
             (TimeUnit.Second, timeSpan.Seconds),
         }
-            .Where(p => p is { Value: not 0 } && p.Unit <= precision)
+            .Where(p => p is { Value: not 0 } && p.Unit >= precision)
             .DefaultIfEmpty((Unit: precision, Value: 0))
             .Select(p => p.Unit.ToString().Pluralize(p.Value, toLower: true))
             .ToList();

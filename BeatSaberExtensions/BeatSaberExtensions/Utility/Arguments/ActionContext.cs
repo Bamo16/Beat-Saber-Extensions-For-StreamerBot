@@ -143,7 +143,7 @@ public class ActionContext(IInlineInvokeProxy cph, Dictionary<string, object> ar
         this switch
         {
             { IsTest: false, CommandType: CommandType.BotWhisper, Caller: { } caller }
-                when !neverSendAsWhisper && UserConfig.AllowBotWhispers => (
+                when !neverSendAsWhisper && UserConfig.Config.AllowBotWhispers => (
                 ResponseType.BotWhisper,
                 $"Sending bot whisper to {caller.Format()}"
             ),

@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Remoting.Contexts;
 using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 using BeatSaberExtensions.Extensions.ExceptionExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Arguments;
 using Newtonsoft.Json;
+using Streamer.bot.Common.Events;
 using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility.Logging;
@@ -133,13 +135,22 @@ public static class Logger
         LogObject(
             new (string Key, string? Value)[]
             {
-                ("EventType", context.EventType.ToString()),
-                ("CommandId", context.CommandId),
+                (
+                    "EventType",
+                    context switch
+                    {
+                        {
+                            EventType: { } eventType and EventType.CommandTriggered,
+                            CommandType: { } cmdType
+                        } => $"{eventType} ({cmdType})",
+                        { EventType: { } eventType } => $"{eventType}",
+                    }
+                ),
                 ("Command", context.Command),
-                ("RawInput", !string.IsNullOrEmpty(context.RawInput) ? context.RawInput : null),
+                ("RawInput", context.RawInput),
                 ("Caller", context.Caller?.Format()),
             }
-                .OfType<(string Key, string Value)>()
+                .Where(kvp => kvp is { Value.Length: > 0 })
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
             label,
             methodName: methodName,
