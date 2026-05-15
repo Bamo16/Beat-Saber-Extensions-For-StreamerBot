@@ -12,10 +12,6 @@
 .vscode/
 .idea/
 
-# Tools and utilities
-.tools/
-tools/
-
 # Misc
 **/.editorconfig
 **/Directory.Build.props
