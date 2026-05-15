@@ -30,7 +30,10 @@ public static class UserConfig
         LogUsersGroup,
     ];
 
-    public static readonly Version Version = new Version(0, 2, 0);
+    // {Version} is a placeholder replaced by StreamerBotBuilder at build time using the <Version>
+    // element from the .csproj. This value reads as the literal string "{Version}" in local builds,
+    // which is expected — this code is never executed outside of StreamerBot.
+    public static readonly Version Version = new Version("{Version}");
 
     private static readonly object _lock = new object();
 

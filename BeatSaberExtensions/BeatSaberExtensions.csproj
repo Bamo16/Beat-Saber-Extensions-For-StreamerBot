@@ -6,6 +6,7 @@
     <AssemblyName>BeatSaberExtensions</AssemblyName>
     <RootNamespace>BeatSaberExtensions</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <Version>0.3.0</Version>
     <NoWarn>CS0114</NoWarn>
     <!-- Ignore CS114 errors -->
     <DefineConstants>OUTSIDE_STREAMERBOT</DefineConstants>

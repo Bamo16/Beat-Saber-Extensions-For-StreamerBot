@@ -1,0 +1,20 @@
+{
+  "namespaceOrder": [
+    "*.Utility",
+    "BeatSaberExtensions.Utility.Http.BeatSaver",
+    "BeatSaberExtensions.Utility.Http.BeatLeader",
+    "BeatSaberExtensions.Utility.Http",
+    "BeatSaberExtensions.Utility.LazyEvaluation",
+    "*.Models*",
+    "*.Enums*",
+    "BeatSaberExtensions.Utility.Logging",
+    "*.Extensions.*Extensions"
+  ],
+  "copyToClipboard": true,
+  "csprojSubstitutions": ["Version"],
+  "additionalLogComments": [
+    "Version: {Version}",
+    "https://github.com/Bamo16/Beat-Saber-Extensions-For-StreamerBot",
+    "Created By: Bamo16 (https://twitch.tv/bamo16)"
+  ]
+}

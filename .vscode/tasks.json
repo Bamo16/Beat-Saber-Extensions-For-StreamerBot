@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Copy to Streamer.bot",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}\\tools\\StreamerBotBuilder\\StreamerBotBuilder.csproj",
+        "--",
+        "--path",
+        "${workspaceFolder}\\BeatSaberExtensions"
+      ],
+      "group": {
+        "kind": "none",
+        "isDefault": false
+      },
+      "presentation": {
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}

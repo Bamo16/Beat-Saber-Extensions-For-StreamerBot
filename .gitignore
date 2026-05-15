@@ -9,11 +9,11 @@
 
 # From IDEs
 .vs/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 
 # Misc
 **/.editorconfig
 **/Directory.Build.props
-**/BuildConfig.json
 NOTES.md
