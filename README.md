@@ -33,6 +33,11 @@
 
 ## 📜 Changelog
 
+### [0.3.0] - 2026-06-18
+
+* Fixed raid requests not being bumped: a valid map submitted as a raid request was rejected because the beatmap-validation helper returned its success flag inverted. The flag is fixed and the helper was rewritten with straight-line guard clauses.
+* Overhauled the repository's build tooling (developer-facing, no runtime impact): flattened the nested project folder, removed the legacy `.sln`, added the `StreamerBotBuilder` tool under `tools/`, and migrated the project to `net481` with global usings.
+
 ### [0.2.0] - 2026-05-12
 
 * **Breaking change**: configuration moved from StreamerBot action arguments to `BeatSaberExtensions.config.json` in the StreamerBot folder. See [📁 Configuration File](#-configuration-file).
