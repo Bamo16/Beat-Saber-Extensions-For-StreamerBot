@@ -14,9 +14,6 @@ using BeatSaberExtensions.Extensions.TimeSpanExtensions;
 using BeatSaberExtensions.Utility.Arguments;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Common.Events;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility;
 
@@ -413,14 +410,16 @@ public class StreamerBotEventHandler(IInlineInvokeProxy cph) : IDisposable
             return $"Could not bump raid request because the requested beatmap ({bsrId}) is already in the queue for {user.Format()}.";
         }
 
-        if (!_beatSaberService.TryValidateBeatmapId(bsrId, out bsrId, out var error))
+        if (!_beatSaberService.TryValidateBeatmap(bsrId, out var beatmap, out var error))
         {
             Logger.Log(
-                $"{raider.Format()} attempted to make a raid request using an invalid BSR Id (\"{bsrId}\"). {error}. Taking no action."
+                $"{raider.Format()} attempted to make a raid request using an invalid BSR Id (\"{bsrId}\"). {error} Taking no action."
             );
 
             return null;
         }
+
+        bsrId = beatmap.Id;
 
         var request = _beatSaberService is { QueueState: false }
             ? AddRequestToTop(context, bsrId, raider, reason: "Queue is closed.")

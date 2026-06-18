@@ -5,8 +5,6 @@ using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Extensions.TimeSpanExtensions;
 using BeatSaberExtensions.Utility.Arguments;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Common.Events;
-using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility;
 

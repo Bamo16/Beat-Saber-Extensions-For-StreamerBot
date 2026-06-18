@@ -1,5 +1,3 @@
-using Streamer.bot.Plugin.Interface.Model;
-
 namespace BeatSaberExtensions.Extensions.GroupUserExtensions;
 
 public static class GroupUserExtensions

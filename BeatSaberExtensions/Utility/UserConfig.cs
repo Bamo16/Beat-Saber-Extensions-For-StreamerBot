@@ -5,7 +5,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility;
 

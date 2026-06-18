@@ -1,7 +1,6 @@
 using System;
 using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Utility;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 

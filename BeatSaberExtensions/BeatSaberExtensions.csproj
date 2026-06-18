@@ -1,36 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net48</TargetFrameworks>
+    <TargetFramework>net481</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <DefineConstants>EXTERNAL_EDITOR</DefineConstants>
+    <NoWarn>CS0114</NoWarn>
+
     <AssemblyName>BeatSaberExtensions</AssemblyName>
     <RootNamespace>BeatSaberExtensions</RootNamespace>
-    <LangVersion>latest</LangVersion>
     <Version>0.3.0</Version>
-    <NoWarn>CS0114</NoWarn>
-    <!-- Ignore CS114 errors -->
-    <DefineConstants>OUTSIDE_STREAMERBOT</DefineConstants>
+
+    <!-- Set the following directory with your Streamer.bot install location -->
+    <StreamerBotPath>P:\RYAN\Streaming\Streamer.bot</StreamerBotPath>
   </PropertyGroup>
   <ItemGroup>
-    <!-- System Assemblies -->
-    <Reference Include="System.Net.Http" Version="4.0.0" />
+    <!-- Automatically include in every CS file -->
+    <Using Include="Streamer.bot.Plugin.Interface" />
+    <Using Include="Streamer.bot.Plugin.Interface.Model" />
+    <Using Include="Streamer.bot.Plugin.Interface.Enums" />
+    <Using Include="Streamer.bot.Common.Events" />
+
+    <!-- Use forward slashes for cross-platform compatibility -->
+    <Reference Include="$(StreamerBotPath)/Streamer.bot.Plugin.Interface.dll" />
+    <Reference Include="$(StreamerBotPath)/Streamer.bot.Common.dll" />
+    <Reference Include="$(StreamerBotPath)/Twitch.Common.dll" />
+
+    <Reference Include="$(StreamerBotPath)/NAudio*.dll" />
+    <Reference Include="$(StreamerBotPath)/Wpf*.dll" />
+    <Reference Include="$(StreamerBotPath)/Newtonsoft.Json.dll" />
+    <Reference Include="$(StreamerBotPath)/System.*.dll" />
+
     <Reference Include="System.Web" />
-    <Reference Include="System.Security" />
-    <!-- Additional Assenblies -->
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>$(DotnetAssembliesPath)\Newtonsoft.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="Streamer.bot.Plugin.Interface">
-      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.dll</HintPath>
-    </Reference>
-    <Reference Include="Streamer.bot.Plugin.Interface.Enum">
-      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.Enum.dll</HintPath>
-    </Reference>
-    <Reference Include="Streamer.bot.Plugin.Interface.Models">
-      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Plugin.Interface.Enum.Models.dll</HintPath>
-    </Reference>
-    <Reference Include="Streamer.bot.Common">
-      <HintPath>$(DotnetAssembliesPath)\Streamer.bot.Common.dll</HintPath>
-    </Reference>
+    <Reference Include="System.Net.Http" />
+    <!-- Uncomment the following line to reference all dlls in the streamerbot directory -->
+    <!-- <Reference Include="$(StreamerBotPath)/**/*.dll" /> -->
   </ItemGroup>
 </Project>

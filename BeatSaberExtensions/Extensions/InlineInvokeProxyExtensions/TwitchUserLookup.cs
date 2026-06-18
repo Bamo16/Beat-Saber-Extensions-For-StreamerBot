@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using BeatSaberExtensions.Extensions.StringExtensions;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 

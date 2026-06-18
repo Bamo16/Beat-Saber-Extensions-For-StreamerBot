@@ -10,12 +10,11 @@ using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 using BeatSaberExtensions.Utility.Http.BeatLeader;
 using BeatSaberExtensions.Utility.Http.BeatSaver;
+using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 using BeatSaberExtensions.Utility.LazyEvaluation;
 using BeatSaberExtensions.Utility.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility;
 
@@ -64,33 +63,52 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
 
     public string GetBeatmapId(string input) => input.MatchBsrRequest(bsrIdOnly: true);
 
-    public bool TryValidateBeatmapId(string bsrId, out string remappedId, out string error)
+    public bool TryValidateBeatmap(string bsrId, out Beatmap beatmap, out string error)
     {
-        remappedId = DatabaseJson.Remaps.TryGetValue(bsrId, out var id) ? id : bsrId;
-        var bsrIdString = remappedId.Equals(bsrId, StringComparison.OrdinalIgnoreCase)
-            ? remappedId
-            : $"{remappedId} (remapped from: {bsrId})";
-        error = remappedId switch
+        beatmap = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(bsrId))
         {
-            null => "Failed to validate beatmap because the provided id was null or empty.",
+            error = "Failed to validate beatmap because the provided id was null or empty.";
 
-            _ when DatabaseJson.Blacklist.Contains(remappedId) =>
-                $"Failed to validate beatmap id \"{bsrIdString}\" because it is on the blacklist.",
+            return false;
+        }
 
-            _ => BeatSaverClient.GetBeatmap(remappedId) switch
-            {
-                { Metadata.LevelAuthorName: { } author }
-                    when DatabaseJson.BannedMappers.Contains(author) =>
-                    $"Failed to validate beatmap id \"{bsrIdString}\" because the mapper ({author}) is on the banned mappers list.",
+        var remappedId = DatabaseJson.Remaps.TryGetValue(bsrId, out var id) ? id : bsrId;
+        var label = remappedId.Equals(bsrId, StringComparison.OrdinalIgnoreCase)
+            ? $"\"{remappedId}\""
+            : $"\"{remappedId}\" (remapped from: \"{bsrId}\")";
 
-                not null => default,
+        if (DatabaseJson.Blacklist.Contains(remappedId))
+        {
+            error = $"Failed to validate beatmap id {label} because it is on the blacklist.";
 
-                _ =>
-                    $"Failed to validate beatmap id \"{bsrIdString}\" because the beatmap could not be retrieved from BeatSaver.",
-            },
-        };
+            return false;
+        }
 
-        return error is not null;
+        if (BeatSaverClient.GetBeatmap(remappedId) is not { } fetched)
+        {
+            error =
+                $"Failed to validate beatmap id {label} because the beatmap could not be retrieved from BeatSaver.";
+
+            return false;
+        }
+
+        if (
+            fetched is { Metadata.LevelAuthorName: { } author }
+            && DatabaseJson.BannedMappers.Contains(author)
+        )
+        {
+            error =
+                $"Failed to validate beatmap id {label} because the mapper ({author}) is on the banned mappers list.";
+
+            return false;
+        }
+
+        beatmap = fetched;
+
+        return true;
     }
 
     public void Dispose()
@@ -107,7 +125,8 @@ public class BeatSaberService(IInlineInvokeProxy cph) : IDisposable
                         .Parse(File.ReadAllText(GetBeatSaberPlusFilePath("Config.Json")))[
                             "QueueOpen"
                         ]
-                        ?.Value<bool>() ?? false,
+                        ?.Value<bool>()
+                    ?? false,
                 TimeSpan.FromSeconds(5)
             )
         ).Value;

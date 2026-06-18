@@ -28,10 +28,10 @@ public class StreamerBotProject(BuildConfig config)
     public List<string> Errors =>
         [.. BuildResult.CompilationErrors.Select(error => error.ToString())];
 
-    public string Code => GetBuildHeader() + (BuildSuccess ? BuildResult.Code : TokenizedCode);
+    public string Code => BuildSuccess ? BuildResult.Code : TokenizedCode;
 
     private string GetUnformattedCode() =>
-        string.Join(Environment.NewLine, GetUsingStatements(), GetCodeBody());
+        string.Join(Environment.NewLine, GetBuildHeader(), GetUsingStatements(), GetCodeBody());
 
     private string GetUsingStatements() =>
         string.Join(

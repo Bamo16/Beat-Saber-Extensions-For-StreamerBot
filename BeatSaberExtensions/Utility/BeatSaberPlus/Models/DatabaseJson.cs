@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
-using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 

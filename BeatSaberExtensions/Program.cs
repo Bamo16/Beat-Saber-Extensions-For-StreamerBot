@@ -2,10 +2,9 @@
 using BeatSaberExtensions.Utility;
 using BeatSaberExtensions.Utility.Arguments;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Plugin.Interface;
 
 public class CPHInline
-#if OUTSIDE_STREAMERBOT
+#if EXTERNAL_EDITOR
     : CPHInlineBase
 #endif
 {

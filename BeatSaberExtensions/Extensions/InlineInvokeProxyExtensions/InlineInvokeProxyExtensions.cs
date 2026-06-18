@@ -8,9 +8,6 @@ using BeatSaberExtensions.Extensions.GroupUserExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Logging;
 using Newtonsoft.Json;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Enums;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 

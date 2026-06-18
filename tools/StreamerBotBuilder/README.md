@@ -70,38 +70,142 @@ Place a `BuildConfig.json` in the project root to configure the build. All field
 
 ## Token substitution
 
-`csprojSubstitutions` lets you pull values out of the project's `.csproj` and inject them into the merged code at build time.
+`csprojSubstitutions` lets you pull values out of the project's `.csproj` and inject them into the merged code at build time. For each name listed, the builder reads the matching XML element (e.g. `<Version>1.0.0</Version>`) and replaces every occurrence of `{Name}` in the merged output with its value. Substitution happens before CSharpier formatting. See the [example](#example) below for a demonstration.
 
-For each name listed, the builder reads the matching XML element from the `.csproj` (e.g. `<Version>1.0.0</Version>`) and replaces every occurrence of `{Name}` in the merged output with its value.
+## Example
 
-This is useful for values that have a single source of truth in the project file but also need to appear in runtime code. For example, to surface the project version:
+Given a project with this layout:
+
+```
+MyProject/
+  MyProject.csproj
+  BuildConfig.json
+  CPHInline.cs
+  Utility/
+    AppInfo.cs
+  Models/
+    Greeting.cs
+```
 
 **`MyProject.csproj`**
 ```xml
-<Version>1.0.0</Version>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48</TargetFrameworks>
+    <RootNamespace>MyProject</RootNamespace>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <!-- ... StreamerBot assembly references ... -->
+</Project>
 ```
 
 **`BuildConfig.json`**
 ```json
 {
-  "csprojSubstitutions": ["Version"]
+  "namespaceOrder": ["*.Utility", "*.Models*"],
+  "copyToClipboard": true,
+  "csprojSubstitutions": ["Version"],
+  "additionalLogComments": ["Version: {Version}"]
 }
 ```
 
-**Source code**
-```csharp
-// {Version} is replaced by StreamerBotBuilder at build time with the value of <Version>
-// from the .csproj. In local builds this reads as the literal string "{Version}", which
-// is expected — this code is never executed outside of StreamerBot.
-public const string AppVersion = "{Version}";
+**`CPHInline.cs`** — the StreamerBot entry point; always placed first in the merged output
+```cs
+using System;
+using Streamer.bot.Plugin.Interface;
+using MyProject.Models;
+
+public class CPHInline
+#if OUTSIDE_STREAMERBOT
+    : CPHInlineBase
+#endif
+{
+    public bool Execute()
+    {
+        CPH.SendMessage(new Greeting("world").Text);
+        return true;
+    }
+}
+```
+
+**`Utility/AppInfo.cs`**
+```cs
+using System;
+
+namespace MyProject.Utility;
+
+public static class AppInfo
+{
+    public static readonly string StartedAt = DateTime.Now.ToString("HH:mm");
+
+    // {Version} is replaced by StreamerBotBuilder at build time using <Version> from the .csproj.
+    // In local builds this is the literal string "{Version}" — expected, since this code
+    // only runs inside StreamerBot.
+    public const string Version = "{Version}";
+}
+```
+
+**`Models/Greeting.cs`**
+```cs
+using MyProject.Utility;
+
+namespace MyProject.Models;
+
+public class Greeting(string name)
+{
+    public string Text => $"Hello, {name}! App v{AppInfo.Version}, started at {AppInfo.StartedAt}.";
+}
 ```
 
 **Merged output**
-```csharp
-public const string AppVersion = "1.0.0";
+```cs
+// =====================================================
+// AUTO-GENERATED — Do not edit directly.
+// Merged from 3 source files by StreamerBotBuilder.
+// To make changes, edit the source files and rebuild.
+// =====================================================
+// Version: 1.0.0
+// Built: 2026-05-15 12:00:00
+// =====================================================
+
+using System;
+
+public class CPHInline
+#if OUTSIDE_STREAMERBOT
+    : CPHInlineBase
+#endif
+{
+    public bool Execute()
+    {
+        CPH.SendMessage(new Greeting("world").Text);
+        return true;
+    }
+}
+
+public static class AppInfo
+{
+    public static readonly string StartedAt = DateTime.Now.ToString("HH:mm");
+
+    // {Version} is replaced by StreamerBotBuilder at build time using <Version> from the .csproj.
+    // In local builds this is the literal string "{Version}" — expected, since this code
+    // only runs inside StreamerBot.
+    public const string Version = "1.0.0";
+}
+
+public class Greeting(string name)
+{
+    public string Text => $"Hello, {name}! App v{AppInfo.Version}, started at {AppInfo.StartedAt}.";
+}
 ```
 
-Substitution happens before CSharpier formatting, so the formatter sees the final values.
+A few things to note in the output:
+
+- **Namespace declarations are stripped** — all types appear at the top level, as StreamerBot requires.
+- **`using System;`** appears once, deduplicated from `CPHInline.cs` and `AppInfo.cs`.
+- **`using Streamer.bot.Plugin.Interface;`** is excluded — Streamer.bot interface namespaces are always available in the StreamerBot runtime without a using statement, so they are stripped.
+- **`using MyProject.*`** is excluded — internal project namespaces are never needed in the flat merged output.
+- **File ordering** follows `namespaceOrder`: `CPHInline` is always first, then `*.Utility` (`AppInfo`), then `*.Models*` (`Greeting`).
+- **`{Version}`** in both the header comment and `AppInfo.Version` has been replaced with `1.0.0`.
 
 ## Known limitations
 

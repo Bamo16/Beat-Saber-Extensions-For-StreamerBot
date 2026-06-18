@@ -5,8 +5,6 @@ using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Http.BeatSaver.Models;
 using Newtonsoft.Json;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility.BeatSaberPlus.Models;
 

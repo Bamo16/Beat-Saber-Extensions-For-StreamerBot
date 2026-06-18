@@ -7,9 +7,6 @@ using BeatSaberExtensions.Extensions.DictionaryExtensions;
 using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Logging;
-using Streamer.bot.Common.Events;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility.Arguments;
 

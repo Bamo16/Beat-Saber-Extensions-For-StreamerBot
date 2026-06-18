@@ -2,8 +2,6 @@ using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 using BeatSaberExtensions.Extensions.ComparableExtensions;
 using BeatSaberExtensions.Extensions.InlineInvokeProxyExtensions;
 using BeatSaberExtensions.Utility.Arguments;
-using Streamer.bot.Plugin.Interface;
-using Streamer.bot.Plugin.Interface.Model;
 
 namespace BeatSaberExtensions.Utility.Logging;
 

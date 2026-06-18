@@ -1,17 +1,12 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.Remoting.Contexts;
 using BeatSaberExtensions.Enums;
 using BeatSaberExtensions.Extensions.BaseUserInfoExtensions;
 using BeatSaberExtensions.Extensions.ExceptionExtensions;
 using BeatSaberExtensions.Extensions.StringExtensions;
 using BeatSaberExtensions.Utility.Arguments;
 using Newtonsoft.Json;
-using Streamer.bot.Common.Events;
-using Streamer.bot.Plugin.Interface;
 
 namespace BeatSaberExtensions.Utility.Logging;
 
