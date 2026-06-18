@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <UseWPF>true</UseWPF>
+    <DefineConstants>EXTERNAL_EDITOR</DefineConstants>
+    <NoWarn>CS0114</NoWarn>
+
+    <AssemblyName>BeatSaberExtensions</AssemblyName>
+    <RootNamespace>BeatSaberExtensions</RootNamespace>
+    <Version>0.3.0</Version>
+
+    <!-- Set the following directory with your Streamer.bot install location -->
+    <StreamerBotPath>P:\RYAN\Streaming\Streamer.bot</StreamerBotPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Automatically include in every CS file -->
+    <Using Include="Streamer.bot.Plugin.Interface" />
+    <Using Include="Streamer.bot.Plugin.Interface.Model" />
+    <Using Include="Streamer.bot.Plugin.Interface.Enums" />
+    <Using Include="Streamer.bot.Common.Events" />
+
+    <!-- Use forward slashes for cross-platform compatibility -->
+    <Reference Include="$(StreamerBotPath)/Streamer.bot.Plugin.Interface.dll" />
+    <Reference Include="$(StreamerBotPath)/Streamer.bot.Common.dll" />
+    <Reference Include="$(StreamerBotPath)/Twitch.Common.dll" />
+
+    <Reference Include="$(StreamerBotPath)/NAudio*.dll" />
+    <Reference Include="$(StreamerBotPath)/Wpf*.dll" />
+    <Reference Include="$(StreamerBotPath)/Newtonsoft.Json.dll" />
+    <Reference Include="$(StreamerBotPath)/System.*.dll" />
+
+    <Reference Include="System.Web" />
+    <Reference Include="System.Net.Http" />
+    <!-- Uncomment the following line to reference all dlls in the streamerbot directory -->
+    <!-- <Reference Include="$(StreamerBotPath)/**/*.dll" /> -->
+  </ItemGroup>
+</Project>
